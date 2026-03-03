@@ -5,7 +5,7 @@ description: "Handle GitHub OAuth callback and create/update user session"
 
 ## Endpoint
 
-```
+```http
 GET /github/callback
 ```
 
@@ -32,12 +32,12 @@ This endpoint returns an HTTP redirect (302 Found) to the frontend application w
 ### Redirect Destinations
 
 **Web Client:**
-```
+```text
 {FRONTEND_URL}/dashboard?token={access_token}
 ```
 
 **Mobile Client:**
-```
+```text
 {MOBILE_URL}?token={access_token}
 ```
 

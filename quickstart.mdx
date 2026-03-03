@@ -83,7 +83,7 @@ You'll also need to create a **GitHub OAuth App** to enable authentication. We'l
     ```
 
     Your database URL will look like:
-    ```
+    ```text
     postgresql://username:password@localhost:5432/privycode
     ```
   </Step>
@@ -144,7 +144,7 @@ You'll also need to create a **GitHub OAuth App** to enable authentication. We'l
     ```
 
     You should see:
-    ```
+    ```text
     Connected to PostgreSQL successfully!!!
     Migrations completed successfully
     Server starting on :8080...
@@ -201,7 +201,7 @@ Welcome to PrivyCode 👋
 <Steps>
   <Step title="Initiate OAuth">
     Visit the login endpoint in your browser:
-    ```
+    ```text
     http://localhost:8080/github/login
     ```
     This will redirect you to GitHub for authorization.
@@ -283,7 +283,7 @@ All authenticated endpoints require the `Authorization: Bearer <token>` header. 
 
 Understanding the codebase structure:
 
-```
+```text
 privycode-server/
 ├── cmd/
 │   └── server/

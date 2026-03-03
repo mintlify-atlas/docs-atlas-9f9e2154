@@ -57,7 +57,7 @@ Before setting up PrivyCode locally, ensure you have the following installed:
   <Step title="Get your database connection URL">
     Your `DATABASE_URL` should follow this format:
     
-    ```bash
+    ```text
     postgresql://username:password@localhost:5432/privycode?sslmode=disable
     ```
     
@@ -149,12 +149,12 @@ Before setting up PrivyCode locally, ensure you have the following installed:
     go run cmd/server/main.go
     ```
     
-    You should see:
-    ```
-    Connected to PostgreSQL successfully!!!
-    Migrations completed successfully
-    Server starting on :8080...
-    ```
+     You should see:
+     ```text
+     Connected to PostgreSQL successfully!!!
+     Migrations completed successfully
+     Server starting on :8080...
+     ```
   </Step>
 
   <Step title="Comment out migration line">
@@ -186,7 +186,7 @@ The server will start on `http://localhost:8080`
 
 <Check>
   Your server is now running! You should see:
-  ```
+  ```text
   Connected to PostgreSQL successfully!!!
   Server starting on :8080...
   ```

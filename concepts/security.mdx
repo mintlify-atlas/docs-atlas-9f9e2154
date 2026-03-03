@@ -219,7 +219,7 @@ link := models.ViewerLink{
 ```
 
 **Access Validation:**
-```go
+```go internal/handlers/viewer_handler.go
 if time.Now().After(link.ExpiresAt) {
     http.Error(w, "Link has expired", http.StatusForbidden)
     return
@@ -407,7 +407,9 @@ func GenerateToken() string {
     ```bash
     # Use SSL connections
     DATABASE_URL=postgres://user:pass@host:5432/db?sslmode=require
+    ```
     
+    ```sql
     # Restrict database user permissions
     GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO privycode_user;
     ```
@@ -500,7 +502,7 @@ Use this checklist when deploying PrivyCode:
 If you suspect a security breach:
 
 1. **Immediately revoke access:**
-   ```bash
+   ```sql
    # Revoke all viewer links for a user
    DELETE FROM viewer_links WHERE user_id = <compromised_user_id>;
    ```

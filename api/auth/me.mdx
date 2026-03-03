@@ -5,7 +5,7 @@ description: "Retrieve authenticated user information"
 
 ## Endpoint
 
-```
+```http
 GET /me
 ```
 
@@ -17,7 +17,7 @@ Returns the current authenticated user's information based on the provided acces
 
 Include the token in the Authorization header:
 
-```
+```http
 Authorization: Bearer {github_token}
 ```
 
@@ -44,7 +44,7 @@ Authorization: Bearer {github_token}
 
 ### 401 Unauthorized - Missing Token
 
-```
+```text
 Unauthorized: Missing token
 ```
 
@@ -52,7 +52,7 @@ Returned when the Authorization header is missing or doesn't start with "Bearer 
 
 ### 401 Unauthorized - Invalid Token
 
-```
+```text
 Unauthorized: Invalid token
 ```
 
@@ -60,7 +60,7 @@ Returned when the provided token doesn't match any user in the database.
 
 ### 401 Unauthorized - User Not Found
 
-```
+```text
 Unauthorized
 ```
 
