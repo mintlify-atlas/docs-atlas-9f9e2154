@@ -1,0 +1,54 @@
+---
+title: "GitHub Login"
+description: "Initiate GitHub OAuth authentication flow"
+---
+
+## Endpoint
+
+```
+GET /github/login
+```
+
+Initiates the GitHub OAuth authentication flow by redirecting the user to GitHub's authorization page. Upon successful authentication, GitHub will redirect back to the callback endpoint.
+
+### Authentication
+
+No authentication required.
+
+## Query Parameters
+
+<ParamField query="mobile" type="string" optional>
+  Set to `"true"` to indicate the request is from a mobile client. This will affect the redirect URL used after successful authentication.
+</ParamField>
+
+## Response
+
+This endpoint returns an HTTP redirect (302 Found) to GitHub's OAuth authorization page.
+
+### Redirect Flow
+
+1. User is redirected to GitHub OAuth page
+2. User authorizes the application
+3. GitHub redirects back to `/github/callback` with authorization code
+
+## Example Request
+
+```bash cURL
+curl -X GET 'https://api.privycode.com/github/login'
+```
+
+### Mobile Client Request
+
+```bash cURL
+curl -X GET 'https://api.privycode.com/github/login?mobile=true'
+```
+
+## Implementation Details
+
+- Generates a unique state parameter (UUID) for CSRF protection
+- If `mobile=true` is set, the state is prefixed with `"mobile-"` to identify mobile flows
+- Redirects to GitHub OAuth URL with appropriate state parameter
+
+## Next Steps
+
+After successful authentication on GitHub, the user will be redirected to the [GitHub Callback](/api/auth/github-callback) endpoint.

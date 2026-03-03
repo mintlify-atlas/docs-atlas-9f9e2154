@@ -1,0 +1,71 @@
+---
+title: "Update Viewer Link"
+description: "Update expiration time and view limits for an existing viewer link"
+---
+
+## PUT /update-link/:id
+
+Updates the expiration time and/or maximum view count for an existing viewer link.
+
+### Authentication
+
+Requires JWT authentication token in the Authorization header.
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  The unique identifier of the viewer link to update
+</ParamField>
+
+### Request Body
+
+<ParamField body="expires_in_days" type="integer">
+  Number of days from now until the link should expire. If greater than 0, sets a new expiration date.
+</ParamField>
+
+<ParamField body="max_views" type="integer">
+  New maximum number of views allowed. If greater than 0, updates the view limit.
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  Confirmation message indicating successful update
+</ResponseField>
+
+### Example Request
+
+```bash
+curl -X PUT http://localhost:8080/update-link/1 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "expires_in_days": 14,
+    "max_views": 20
+  }'
+```
+
+### Example Response
+
+```json
+{
+  "message": "Viewer link updated successfully"
+}
+```
+
+### Status Codes
+
+- `200 OK` - Viewer link successfully updated
+- `400 Bad Request` - Invalid ID format or invalid JSON payload
+- `401 Unauthorized` - Missing or invalid authentication token
+- `404 Not Found` - Viewer link with specified ID not found
+- `500 Internal Server Error` - Failed to update link in database
+
+### Notes
+
+- Only fields with values greater than 0 will be updated
+- If `expires_in_days` is 0 or negative, the expiration date is not modified
+- If `max_views` is 0 or negative, the max views setting is not modified
+- The new expiration time is calculated from the current time, not from the original creation date
+- The current view count is not affected by this update
+- You can update one or both fields in a single request

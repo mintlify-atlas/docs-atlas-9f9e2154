@@ -1,0 +1,120 @@
+---
+title: "Get Dashboard Links"
+description: "Retrieve all viewer links created by the authenticated user"
+---
+
+## GET /dashboard
+
+Retrieves a list of all viewer links created by the authenticated user, including link metadata and associated user information.
+
+### Authentication
+
+Requires JWT authentication token in the Authorization header.
+
+### Response
+
+Returns an array of ViewerLink objects:
+
+<ResponseField name="id" type="integer">
+  Unique identifier for the viewer link
+</ResponseField>
+
+<ResponseField name="repo_name" type="string">
+  Name of the GitHub repository associated with this link
+</ResponseField>
+
+<ResponseField name="user_id" type="integer">
+  ID of the user who created the link
+</ResponseField>
+
+<ResponseField name="token" type="string">
+  The unique access token for this viewer link
+</ResponseField>
+
+<ResponseField name="expires_at" type="string">
+  ISO 8601 timestamp when the link expires
+</ResponseField>
+
+<ResponseField name="max_views" type="integer">
+  Maximum number of views allowed (0 for unlimited)
+</ResponseField>
+
+<ResponseField name="view_count" type="integer">
+  Current number of times the link has been accessed
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO 8601 timestamp when the link was created
+</ResponseField>
+
+<ResponseField name="updated_at" type="string">
+  ISO 8601 timestamp when the link was last updated
+</ResponseField>
+
+<ResponseField name="deleted_at" type="string" nullable>
+  ISO 8601 timestamp when the link was soft-deleted (null if active)
+</ResponseField>
+
+<ResponseField name="User" type="object">
+  Associated user information (preloaded)
+</ResponseField>
+
+### Example Request
+
+```bash
+curl -X GET http://localhost:8080/dashboard \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+### Example Response
+
+```json
+[
+  {
+    "id": 1,
+    "repo_name": "my-private-repo",
+    "user_id": 42,
+    "token": "abc123def456ghi789jkl",
+    "expires_at": "2026-03-10T12:00:00Z",
+    "max_views": 10,
+    "view_count": 3,
+    "created_at": "2026-03-03T12:00:00Z",
+    "updated_at": "2026-03-03T12:00:00Z",
+    "deleted_at": null,
+    "User": {
+      "id": 42,
+      "github_username": "johndoe",
+      "email": "john@example.com"
+    }
+  },
+  {
+    "id": 2,
+    "repo_name": "another-repo",
+    "user_id": 42,
+    "token": "xyz789uvw456rst123mno",
+    "expires_at": "2026-03-06T12:00:00Z",
+    "max_views": 0,
+    "view_count": 15,
+    "created_at": "2026-03-02T12:00:00Z",
+    "updated_at": "2026-03-02T12:00:00Z",
+    "deleted_at": null,
+    "User": {
+      "id": 42,
+      "github_username": "johndoe",
+      "email": "john@example.com"
+    }
+  }
+]
+```
+
+### Status Codes
+
+- `200 OK` - Successfully retrieved viewer links
+- `401 Unauthorized` - Missing or invalid authentication token
+- `500 Internal Server Error` - Failed to fetch links from database
+
+### Notes
+
+- Only returns links created by the authenticated user
+- Includes preloaded User relationship data
+- Returns an empty array if the user has no viewer links

@@ -1,0 +1,532 @@
+---
+title: Security
+description: Comprehensive security features and best practices for protecting your private repositories with PrivyCode
+---
+
+PrivyCode implements multiple layers of security to ensure your private repositories remain protected while enabling controlled sharing.
+
+## Security Architecture
+
+PrivyCode's security model is built on four core principles:
+
+1. **Authentication** - GitHub OAuth 2.0 for identity verification
+2. **Authorization** - Token-based access control
+3. **Access Control** - Time and view-limited sharing
+4. **Data Protection** - Secure token storage and transmission
+
+## Authentication Security
+
+### GitHub OAuth 2.0
+
+PrivyCode uses GitHub's OAuth 2.0 implementation for secure user authentication:
+
+```go internal/github/oauth.go
+func GetGitHubOAuthConfig() *oauth2.Config {
+    return &oauth2.Config{
+        ClientID:     os.Getenv("GITHUB_CLIENT_ID"),
+        ClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
+        Endpoint:     github.Endpoint,
+        RedirectURL:  os.Getenv("GITHUB_CALLBACK_URL"),
+        Scopes:       []string{"read:user", "repo"},
+    }
+}
+```
+
+**Security Features:**
+- State parameter prevents CSRF attacks
+- Scoped access requests minimal required permissions
+- Tokens stored securely in database
+- HTTPS-only callback URLs in production
+
+<Warning>
+  Always configure `GITHUB_CALLBACK_URL` to use HTTPS in production environments.
+</Warning>
+
+### CSRF Protection
+
+Each OAuth flow includes a unique state parameter:
+
+```go internal/handlers/auth_handler.go
+func GitHubLoginHandler(w http.ResponseWriter, r *http.Request) {
+    // Generate unique state token
+    state := uuid.New().String()
+    if r.URL.Query().Get("mobile") == "true" {
+        state = "mobile-" + state
+    }
+    url := github.GetAuthURL(state)
+    http.Redirect(w, r, url, http.StatusFound)
+}
+```
+
+The state parameter is validated on callback to prevent cross-site request forgery attacks.
+
+## Authorization Controls
+
+### Token-Based Authentication
+
+All API requests require Bearer token authentication:
+
+```go internal/middleware/auth.go
+func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
+    return func(w http.ResponseWriter, r *http.Request) {
+        authHeader := r.Header.Get("Authorization")
+        
+        // Validate Bearer token format
+        if !strings.HasPrefix(authHeader, "Bearer ") {
+            http.Error(w, "Unauthorized: Missing token", http.StatusUnauthorized)
+            return
+        }
+        
+        token := strings.TrimPrefix(authHeader, "Bearer ")
+        
+        // Verify token exists in database
+        var user models.User
+        if err := config.DB.Where("git_hub_token = ?", token).First(&user).Error; err != nil {
+            http.Error(w, "Unauthorized: Invalid token", http.StatusUnauthorized)
+            return
+        }
+        
+        // Inject user into request context
+        ctx := context.WithValue(r.Context(), userCtxKey, &user)
+        next.ServeHTTP(w, r.WithContext(ctx))
+    }
+}
+```
+
+**Security Benefits:**
+- Stateless authentication
+- Database validation on every request
+- No client-side credential storage
+- Context-based user injection
+
+### Protected Routes
+
+```go internal/routes/router.go
+// Public routes
+mux.HandleFunc("/github/login", handlers.GitHubLoginHandler)
+mux.HandleFunc("/github/callback", handlers.GitHubCallbackHandler)
+
+// Protected routes (require authentication)
+mux.HandleFunc("/dashboard", middleware.AuthMiddleware(handlers.DashboardHandler))
+mux.HandleFunc("/me", middleware.AuthMiddleware(handlers.MeHandler))
+mux.HandleFunc("/generate-viewer-link", middleware.AuthMiddleware(handlers.GenerateViewerLinkHandler))
+mux.HandleFunc("/update-link/", middleware.AuthMiddleware(handlers.UpdateViewerLinkHandler))
+mux.HandleFunc("/delete-link/", middleware.AuthMiddleware(handlers.DeleteViewerLinkHandler))
+
+// Viewer routes (token-based, no auth required)
+mux.HandleFunc("/view/", handlers.ViewerAccessHandler)
+mux.HandleFunc("/view-files/", handlers.ViewFileHandler)
+mux.HandleFunc("/view-folder/", handlers.ViewerFolderHandler)
+```
+
+<Info>
+  Viewer access endpoints use viewer link tokens instead of user authentication, enabling anonymous access to shared repositories.
+</Info>
+
+## CORS Configuration
+
+Cross-Origin Resource Sharing is restricted to trusted origins:
+
+```go internal/middleware/cors.go
+func WithCORS(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        origin := r.Header.Get("Origin")
+        allowedOrigins := map[string]bool{
+            "http://localhost:5173":     true,  // Development
+            "https://privycode.com":     true,  // Production
+            "https://www.privycode.com": true,  // Production (www)
+        }
+        
+        if allowedOrigins[origin] {
+            w.Header().Set("Access-Control-Allow-Origin", origin)
+        }
+        
+        w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+        w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        w.Header().Set("Access-Control-Allow-Credentials", "true")
+        
+        if r.Method == "OPTIONS" {
+            w.WriteHeader(http.StatusOK)
+            return
+        }
+        
+        next.ServeHTTP(w, r)
+    })
+}
+```
+
+**Security Features:**
+- Whitelist-based origin validation
+- Credentials allowed only for trusted origins
+- Preflight request handling
+- Method and header restrictions
+
+<Warning>
+  Never use wildcard (`*`) for `Access-Control-Allow-Origin` in production when `Access-Control-Allow-Credentials` is true.
+</Warning>
+
+## Access Control
+
+### Repository Verification
+
+Before creating viewer links, the system verifies repository access:
+
+```go internal/handlers/viewer_handler.go
+func GenerateViewerLinkHandler(w http.ResponseWriter, r *http.Request) {
+    user := middleware.GetUserFromContext(r)
+    
+    // Verify repository exists and user has access
+    apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s", 
+        user.GitHubUsername, req.RepoName)
+    reqGitHub, _ := http.NewRequest("GET", apiURL, nil)
+    reqGitHub.Header.Set("Authorization", "token "+user.GitHubToken)
+    reqGitHub.Header.Set("Accept", "application/vnd.github.v3+json")
+    
+    client := &http.Client{}
+    resp, err := client.Do(reqGitHub)
+    
+    if err != nil || resp.StatusCode != 200 {
+        http.Error(w, "Repository not found or inaccessible", http.StatusNotFound)
+        return
+    }
+    
+    // Only create link if verification succeeds
+    // ...
+}
+```
+
+**Security Benefits:**
+- Prevents links to non-existent repositories
+- Ensures user has repository access
+- Validates permissions before link creation
+
+### Time-Limited Access
+
+Viewer links automatically expire after a configured duration:
+
+```go internal/handlers/viewer_handler.go
+// Calculate expiration
+days := req.ExpiresIn
+if days <= 0 {
+    days = 3 // default 3 days
+}
+expiration := time.Now().Add(time.Duration(days) * 24 * time.Hour)
+
+link := models.ViewerLink{
+    ExpiresAt: expiration,
+    // ...
+}
+```
+
+**Access Validation:**
+```go
+if time.Now().After(link.ExpiresAt) {
+    http.Error(w, "Link has expired", http.StatusForbidden)
+    return
+}
+```
+
+<Note>
+  Time-based expiration is checked on every access attempt, ensuring expired links are immediately inaccessible.
+</Note>
+
+### View Count Limits
+
+Optional view limits restrict the number of times a link can be accessed:
+
+```go internal/handlers/viewer_handler.go
+// Check view limit
+if link.MaxViews > 0 && link.ViewCount >= link.MaxViews {
+    http.Error(w, "View limit reached", http.StatusForbidden)
+    return
+}
+
+// Increment view count atomically
+link.ViewCount++
+dbInstance.Save(&link)
+```
+
+**Use Cases:**
+- Single-use links: `max_views: 1`
+- Limited team access: `max_views: 10`
+- Controlled public sharing: `max_views: 100`
+
+### Soft Delete Protection
+
+Deleted links are immediately inaccessible:
+
+```go internal/handlers/viewer_handler.go
+// Check for soft-deleted links
+var link models.ViewerLink
+dbInstance.Unscoped().Where("token = ?", token).First(&link)
+
+if link.DeletedAt.Valid {
+    http.Error(w, "This link has been deleted", http.StatusGone)
+    return
+}
+```
+
+## Data Protection
+
+### Database Security
+
+**User Model:**
+```go internal/models/user.go
+type User struct {
+    gorm.Model
+    Email          string       `gorm:"unique;not null"`
+    GitHubUsername string       `gorm:"unique;not null"`
+    GitHubToken    string       `gorm:"not null"`  // Encrypted in production
+    ViewerLinks    []ViewerLink `gorm:"foreignKey:UserID"`
+}
+```
+
+**ViewerLink Model:**
+```go internal/models/viewer_link.go
+type ViewerLink struct {
+    gorm.Model
+    RepoName  string    `gorm:"not null" json:"repo_name"`
+    UserID    uint      `gorm:"not null" json:"user_id"`
+    User      User      `gorm:"constraint:OnDelete:CASCADE"`
+    Token     string    `gorm:"not null;unique" json:"token"`
+    ExpiresAt time.Time `json:"expires_at"`
+    MaxViews  int       `json:"max_views"`
+    ViewCount int       `json:"view_count"`
+}
+```
+
+**Security Features:**
+- Unique constraints prevent token collisions
+- Cascade delete removes orphaned viewer links
+- Non-null constraints enforce data integrity
+- Foreign key relationships maintain referential integrity
+
+### Environment Variable Management
+
+```go config/config.go
+func ConnectDB() {
+    // Load .env only in development
+    if os.Getenv("GO_ENV") != "production" {
+        err := godotenv.Load()
+        if err != nil {
+            log.Fatal("Error loading .env file")
+        }
+    }
+    
+    dsn := os.Getenv("DATABASE_URL")
+    database, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+    // ...
+}
+```
+
+<Warning>
+  **Never commit these to version control:**
+  - `GITHUB_CLIENT_SECRET`
+  - `DATABASE_URL`
+  - GitHub access tokens
+  - Any API keys or credentials
+</Warning>
+
+### Secure Token Generation
+
+Viewer link tokens use UUID v4 for cryptographic randomness:
+
+```go internal/utils/token.go
+func GenerateToken() string {
+    return uuid.New().String()  // UUID v4: 122 bits of entropy
+}
+```
+
+**Security Properties:**
+- Cryptographically random
+- Globally unique
+- Unpredictable
+- URL-safe
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use HTTPS in Production">
+    Always configure production environments to use HTTPS:
+
+    ```bash .env (Production)
+    GITHUB_CALLBACK_URL=https://api.privycode.com/github/callback
+    FRONTEND_URL=https://privycode.com
+    ```
+
+    **Benefits:**
+    - Encrypts all data in transit
+    - Prevents token interception
+    - Required for secure cookies
+    - Protects OAuth flow integrity
+  </Accordion>
+
+  <Accordion title="Minimize Token Scope">
+    Request only necessary GitHub permissions:
+
+    ```go
+    Scopes: []string{"read:user", "repo"}
+    ```
+
+    **Principle of Least Privilege:**
+    - `read:user` - Basic profile information only
+    - `repo` - Repository access (read/write for private repos)
+    - Avoid requesting write permissions unless required
+  </Accordion>
+
+  <Accordion title="Implement Rate Limiting">
+    Protect endpoints from abuse:
+
+    ```go
+    // Example: Limit viewer link creation
+    // Recommended: 10 links per hour per user
+    // Recommended: 100 viewer accesses per minute per token
+    ```
+
+    <Note>
+      Consider implementing rate limiting at the reverse proxy level (nginx, Cloudflare) for better performance.
+    </Note>
+  </Accordion>
+
+  <Accordion title="Regular Security Audits">
+    **Recommended Practices:**
+    - Review viewer link access logs regularly
+    - Monitor for unusual access patterns
+    - Audit expired and deleted links
+    - Rotate GitHub OAuth credentials periodically
+    - Keep dependencies updated
+
+    ```bash
+    # Check for security vulnerabilities
+    go list -json -m all | nancy sleuth
+    ```
+  </Accordion>
+
+  <Accordion title="Secure Database Access">
+    **PostgreSQL Security:**
+    ```bash
+    # Use SSL connections
+    DATABASE_URL=postgres://user:pass@host:5432/db?sslmode=require
+    
+    # Restrict database user permissions
+    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO privycode_user;
+    ```
+
+    **Best Practices:**
+    - Use connection pooling
+    - Enable SSL/TLS for database connections
+    - Create read-only replicas for analytics
+    - Regular database backups
+  </Accordion>
+
+  <Accordion title="Token Rotation">
+    Update GitHub tokens on each OAuth flow:
+
+    ```go internal/handlers/auth_handler.go
+    // Update existing user's token
+    if err == nil {
+        existingUser.GitHubToken = token.AccessToken
+        dbInstance.Save(&existingUser)
+    }
+    ```
+
+    **Benefits:**
+    - Invalidates old tokens
+    - Reduces token compromise window
+    - Maintains fresh permissions
+  </Accordion>
+
+  <Accordion title="Input Validation">
+    Validate all user inputs:
+
+    ```go internal/handlers/viewer_handler.go
+    var req ViewerLinkRequest
+    err := json.NewDecoder(r.Body).Decode(&req)
+    if err != nil || req.RepoName == "" {
+        http.Error(w, "Invalid input", http.StatusBadRequest)
+        return
+    }
+    
+    // Sanitize repository name
+    // Validate expiration days (max 365)
+    // Validate max views (max 10000)
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Security Checklist
+
+Use this checklist when deploying PrivyCode:
+
+<Steps>
+  <Step title="Configure HTTPS">
+    - [ ] SSL/TLS certificates installed
+    - [ ] HTTPS enforced for all endpoints
+    - [ ] HSTS headers configured
+    - [ ] Redirect HTTP to HTTPS
+  </Step>
+
+  <Step title="Secure Environment Variables">
+    - [ ] GitHub OAuth credentials set
+    - [ ] Database credentials secured
+    - [ ] Production secrets not in version control
+    - [ ] Environment-specific configs validated
+  </Step>
+
+  <Step title="Database Security">
+    - [ ] PostgreSQL SSL enabled
+    - [ ] Database user has minimal permissions
+    - [ ] Automated backups configured
+    - [ ] Connection pooling enabled
+  </Step>
+
+  <Step title="Access Controls">
+    - [ ] CORS properly configured
+    - [ ] Auth middleware on protected routes
+    - [ ] Token validation working
+    - [ ] Rate limiting implemented
+  </Step>
+
+  <Step title="Monitoring">
+    - [ ] Error logging configured
+    - [ ] Access logs enabled
+    - [ ] Security alerts set up
+    - [ ] Metrics collection active
+  </Step>
+</Steps>
+
+## Security Incident Response
+
+If you suspect a security breach:
+
+1. **Immediately revoke access:**
+   ```bash
+   # Revoke all viewer links for a user
+   DELETE FROM viewer_links WHERE user_id = <compromised_user_id>;
+   ```
+
+2. **Rotate credentials:**
+   - Regenerate GitHub OAuth credentials
+   - Update database passwords
+   - Invalidate all active sessions
+
+3. **Audit access logs:**
+   - Check for unauthorized access patterns
+   - Review viewer link access logs
+   - Identify affected repositories
+
+4. **Notify affected users:**
+   - Inform users of potential breach
+   - Recommend password changes
+   - Provide security guidance
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/concepts/authentication">
+    Learn about GitHub OAuth implementation
+  </Card>
+  <Card title="Viewer Links" icon="link" href="/concepts/viewer-links">
+    Understand viewer link mechanics
+  </Card>
+</CardGroup>

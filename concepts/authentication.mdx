@@ -1,0 +1,256 @@
+---
+title: Authentication
+description: Learn how PrivyCode implements GitHub OAuth and token-based authentication to secure your private repositories
+---
+
+PrivyCode uses GitHub OAuth 2.0 for user authentication and issues bearer tokens for API access. This ensures secure access to your private repositories without exposing credentials.
+
+## Authentication Flow
+
+<Steps>
+  <Step title="Initiate GitHub OAuth">
+    Users start the authentication process by navigating to the `/github/login` endpoint. The server generates a unique state parameter and redirects to GitHub's authorization page.
+
+    ```go internal/handlers/auth_handler.go
+    func GitHubLoginHandler(w http.ResponseWriter, r *http.Request) {
+        state := uuid.New().String()
+        // Mobile client detection
+        if r.URL.Query().Get("mobile") == "true" {
+            state = "mobile-" + state
+        }
+        url := github.GetAuthURL(state)
+        http.Redirect(w, r, url, http.StatusFound)
+    }
+    ```
+
+    <Info>
+      The state parameter includes a `mobile-` prefix for mobile clients, enabling platform-specific redirect handling.
+    </Info>
+  </Step>
+
+  <Step title="GitHub Authorization">
+    GitHub prompts the user to authorize PrivyCode with the following scopes:
+
+    ```go internal/github/oauth.go
+    func GetGitHubOAuthConfig() *oauth2.Config {
+        return &oauth2.Config{
+            ClientID:     os.Getenv("GITHUB_CLIENT_ID"),
+            ClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
+            Endpoint:     github.Endpoint,
+            RedirectURL:  os.Getenv("GITHUB_CALLBACK_URL"),
+            Scopes:       []string{"read:user", "repo"},
+        }
+    }
+    ```
+
+    **Required Scopes:**
+    - `read:user` - Access basic user profile information
+    - `repo` - Access public and private repository contents
+  </Step>
+
+  <Step title="Token Exchange">
+    After authorization, GitHub redirects back with an authorization code. The server exchanges this code for an access token:
+
+    ```go internal/github/oauth.go
+    func ExchangeCodeForToken(code string) (*oauth2.Token, error) {
+        ctx := context.Background()
+        return GetGitHubOAuthConfig().Exchange(ctx, code)
+    }
+    ```
+  </Step>
+
+  <Step title="User Creation or Update">
+    The server fetches user details from GitHub and creates or updates the user record:
+
+    ```go internal/handlers/auth_handler.go
+    // Fetch user from GitHub API
+    client := github.GetGitHubOAuthConfig().Client(r.Context(), token)
+    response, err := client.Get("https://api.github.com/user")
+    
+    var githubUser struct {
+        Login string `json:"login"`
+        Email string `json:"email"`
+    }
+    json.NewDecoder(response.Body).Decode(&githubUser)
+
+    // Create or update user
+    var existingUser models.User
+    err = dbInstance.Where("git_hub_username = ?", githubUser.Login).First(&existingUser).Error
+    
+    if err == gorm.ErrRecordNotFound {
+        newUser := models.User{
+            Email:          email,
+            GitHubUsername: githubUser.Login,
+            GitHubToken:    token.AccessToken,
+        }
+        dbInstance.Create(&newUser)
+    } else {
+        existingUser.GitHubToken = token.AccessToken
+        dbInstance.Save(&existingUser)
+    }
+    ```
+
+    <Note>
+      If GitHub doesn't provide an email, the system generates a fallback email: `username@users.noreply.github.com`
+    </Note>
+  </Step>
+
+  <Step title="Client Redirect">
+    Users are redirected to the dashboard with their access token:
+
+    ```go internal/handlers/auth_handler.go
+    redirectURL := fmt.Sprintf("%s/dashboard?token=%s", frontendURL, token.AccessToken)
+    http.Redirect(w, r, redirectURL, http.StatusFound)
+    ```
+  </Step>
+</Steps>
+
+## User Model
+
+Authenticated users are stored with the following schema:
+
+```go internal/models/user.go
+type User struct {
+    gorm.Model
+    Email          string       `gorm:"unique;not null"`
+    GitHubUsername string       `gorm:"unique;not null"`
+    GitHubToken    string       `gorm:"not null"`
+    ViewerLinks    []ViewerLink `gorm:"foreignKey:UserID"`
+}
+```
+
+**Fields:**
+- `Email` - User's email address (unique)
+- `GitHubUsername` - GitHub username (unique)
+- `GitHubToken` - GitHub OAuth access token for API calls
+- `ViewerLinks` - Associated viewer links created by the user
+
+## Token-Based Authentication
+
+All protected API endpoints require a Bearer token in the Authorization header.
+
+### Authentication Middleware
+
+The auth middleware validates tokens on every request:
+
+```go internal/middleware/auth.go
+func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
+    return func(w http.ResponseWriter, r *http.Request) {
+        authHeader := r.Header.Get("Authorization")
+        
+        if !strings.HasPrefix(authHeader, "Bearer ") {
+            http.Error(w, "Unauthorized: Missing token", http.StatusUnauthorized)
+            return
+        }
+        
+        token := strings.TrimPrefix(authHeader, "Bearer ")
+        
+        var user models.User
+        if err := config.DB.Where("git_hub_token = ?", token).First(&user).Error; err != nil {
+            http.Error(w, "Unauthorized: Invalid token", http.StatusUnauthorized)
+            return
+        }
+        
+        ctx := context.WithValue(r.Context(), userCtxKey, &user)
+        next.ServeHTTP(w, r.WithContext(ctx))
+    }
+}
+```
+
+### Making Authenticated Requests
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.privycode.com/generate-viewer-link \
+  -H "Authorization: Bearer gho_xxxxxxxxxxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repo_name": "my-private-repo",
+    "expires_in_days": 7,
+    "max_views": 100
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.privycode.com/generate-viewer-link', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${githubToken}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    repo_name: 'my-private-repo',
+    expires_in_days: 7,
+    max_views: 100
+  })
+});
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'https://api.privycode.com/generate-viewer-link',
+    headers={
+        'Authorization': f'Bearer {github_token}',
+        'Content-Type': 'application/json'
+    },
+    json={
+        'repo_name': 'my-private-repo',
+        'expires_in_days': 7,
+        'max_views': 100
+    }
+)
+```
+</CodeGroup>
+
+## Protected Endpoints
+
+The following endpoints require authentication:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/dashboard` | GET | User dashboard with all viewer links |
+| `/me` | GET | Current user information |
+| `/generate-viewer-link` | POST | Create a new viewer link |
+| `/update-link/:id` | PUT | Update viewer link settings |
+| `/delete-link/:id` | DELETE | Delete a viewer link |
+
+<Note>
+  Viewer access endpoints (`/view/*`, `/view-files/*`, `/view-folder/*`) do **not** require authentication - they use viewer link tokens instead.
+</Note>
+
+## Environment Variables
+
+Configure these environment variables for GitHub OAuth:
+
+```bash .env
+GITHUB_CLIENT_ID=your_github_client_id
+GITHUB_CLIENT_SECRET=your_github_client_secret
+GITHUB_CALLBACK_URL=https://api.privycode.com/github/callback
+FRONTEND_URL=https://privycode.com
+MOBILE_URL=privycode://auth
+```
+
+<Warning>
+  Never commit your `GITHUB_CLIENT_SECRET` to version control. Use environment variables or secret management services.
+</Warning>
+
+## Security Considerations
+
+1. **Token Storage** - GitHub tokens are stored encrypted in the database
+2. **Token Validation** - Every request validates the token against the database
+3. **HTTPS Only** - All authentication flows must use HTTPS in production
+4. **State Parameter** - Prevents CSRF attacks during OAuth flow
+5. **Token Refresh** - Tokens are updated on each successful OAuth flow
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Viewer Links" icon="link" href="/concepts/viewer-links">
+    Learn how to generate and manage viewer links
+  </Card>
+  <Card title="Security" icon="shield" href="/concepts/security">
+    Explore security features and best practices
+  </Card>
+</CardGroup>

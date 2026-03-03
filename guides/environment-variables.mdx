@@ -1,0 +1,510 @@
+---
+title: Environment Variables
+description: Complete reference for all environment variables used in PrivyCode server
+---
+
+## Overview
+
+PrivyCode server uses environment variables for configuration. In local development, these are loaded from a `.env` file. In production, they should be set in your hosting platform's environment settings.
+
+<Note>
+  The server automatically loads `.env` files when `GO_ENV` is not set to `production`. In production environments, set `GO_ENV=production` to skip `.env` file loading.
+</Note>
+
+## Required Variables
+
+These variables must be set for the server to function properly.
+
+### PORT
+
+<ParamField path="PORT" type="string" default="8080">
+  The port number the server will listen on.
+  
+  **Example:**
+  ```bash
+  PORT=8080
+  ```
+  
+  <Note>
+    If not set, the server defaults to port `8080`. Some platforms like Railway may override this with their own `PORT` variable.
+  </Note>
+</ParamField>
+
+### DATABASE_URL
+
+<ParamField path="DATABASE_URL" type="string" required>
+  PostgreSQL connection string for the database.
+  
+  **Format:**
+  ```bash
+  postgresql://username:password@host:port/database?options
+  ```
+  
+  **Examples:**
+  
+  <CodeGroup>
+  ```bash Local Development
+  DATABASE_URL=postgresql://postgres:password@localhost:5432/privycode?sslmode=disable
+  ```
+  
+  ```bash Production
+  DATABASE_URL=postgresql://user:pass@db.example.com:5432/privycode?sslmode=require
+  ```
+  
+  ```bash Railway (auto-provided)
+  DATABASE_URL=postgresql://postgres:password@containers-us-west-xxx.railway.app:5432/railway
+  ```
+  </CodeGroup>
+  
+  <Warning>
+    **Security:** Always use `sslmode=require` in production. Only use `sslmode=disable` for local development.
+  </Warning>
+  
+  **Used in:**
+  - `config/config.go:27` - Database connection initialization
+</ParamField>
+
+### GITHUB_CLIENT_ID
+
+<ParamField path="GITHUB_CLIENT_ID" type="string" required>
+  OAuth application Client ID from GitHub.
+  
+  **Example:**
+  ```bash
+  GITHUB_CLIENT_ID=Iv1.a1b2c3d4e5f6g7h8
+  ```
+  
+  **How to get:**
+  1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
+  2. Click "OAuth Apps" → "New OAuth App"
+  3. Copy the Client ID after creating the app
+  
+  **Used in:**
+  - `internal/github/oauth.go:14` - OAuth configuration
+</ParamField>
+
+### GITHUB_CLIENT_SECRET
+
+<ParamField path="GITHUB_CLIENT_SECRET" type="string" required>
+  OAuth application Client Secret from GitHub.
+  
+  **Example:**
+  ```bash
+  GITHUB_CLIENT_SECRET=a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0
+  ```
+  
+  **How to get:**
+  1. In your GitHub OAuth App settings
+  2. Click "Generate a new client secret"
+  3. Copy the secret immediately (it won't be shown again)
+  
+  <Warning>
+    **Security:** Never commit this value to version control. Keep it secret and rotate it if exposed.
+  </Warning>
+  
+  **Used in:**
+  - `internal/github/oauth.go:15` - OAuth configuration
+</ParamField>
+
+### GITHUB_CALLBACK_URL
+
+<ParamField path="GITHUB_CALLBACK_URL" type="string" required>
+  The callback URL GitHub will redirect to after authentication.
+  
+  **Format:**
+  ```
+  {your_server_url}/github/callback
+  ```
+  
+  **Examples:**
+  
+  <CodeGroup>
+  ```bash Local Development
+  GITHUB_CALLBACK_URL=http://localhost:8080/github/callback
+  ```
+  
+  ```bash Production
+  GITHUB_CALLBACK_URL=https://api.privycode.com/github/callback
+  ```
+  
+  ```bash Railway
+  GITHUB_CALLBACK_URL=https://privycode-server-production.up.railway.app/github/callback
+  ```
+  </CodeGroup>
+  
+  <Warning>
+    This URL must **exactly match** the "Authorization callback URL" in your GitHub OAuth App settings.
+  </Warning>
+  
+  **Used in:**
+  - `internal/github/oauth.go:17` - OAuth redirect configuration
+</ParamField>
+
+### FRONTEND_URL
+
+<ParamField path="FRONTEND_URL" type="string" required>
+  The URL of your frontend application.
+  
+  **Examples:**
+  
+  <CodeGroup>
+  ```bash Local Development
+  FRONTEND_URL=http://localhost:5173
+  ```
+  
+  ```bash Production
+  FRONTEND_URL=https://privycode.com
+  ```
+  </CodeGroup>
+  
+  **Used for:**
+  - CORS configuration (must be added to `internal/middleware/cors.go`)
+  - Redirecting users after authentication
+  - Setting cookies with correct domain
+  
+  <Note>
+    If your frontend runs on a different port during development (e.g., Vite default is 5173), update this accordingly.
+  </Note>
+</ParamField>
+
+### MOBILE_URL
+
+<ParamField path="MOBILE_URL" type="string" required>
+  The URL for mobile app deep linking or mobile web access.
+  
+  **Examples:**
+  
+  <CodeGroup>
+  ```bash Development
+  MOBILE_URL=http://localhost:5173
+  ```
+  
+  ```bash Production (Web)
+  MOBILE_URL=https://privycode.com
+  ```
+  
+  ```bash Production (Mobile App)
+  MOBILE_URL=privycode://app
+  ```
+  </CodeGroup>
+  
+  <Note>
+    If you don't have a separate mobile app, set this to the same value as `FRONTEND_URL`.
+  </Note>
+</ParamField>
+
+## Optional Variables
+
+### GO_ENV
+
+<ParamField path="GO_ENV" type="string" default="development">
+  Environment mode that controls `.env` file loading.
+  
+  **Values:**
+  - `production` - Skips loading `.env` file, uses system environment variables
+  - Any other value or unset - Loads `.env` file from project root
+  
+  **Examples:**
+  
+  <CodeGroup>
+  ```bash Local Development
+  # Don't set this variable, or set to:
+  GO_ENV=development
+  ```
+  
+  ```bash Production
+  GO_ENV=production
+  ```
+  </CodeGroup>
+  
+  **Code reference:**
+  ```go config/config.go
+  // To only load .env file in local development
+  if os.Getenv("GO_ENV") != "production" {
+      err := godotenv.Load()
+      if err != nil {
+          log.Fatal("Error loading .env file")
+      }
+  }
+  ```
+  
+  <Warning>
+    Always set `GO_ENV=production` when deploying to production platforms to prevent the server from looking for a `.env` file.
+  </Warning>
+</ParamField>
+
+## Example Configuration Files
+
+### .env.example (Included in Repository)
+
+```bash .env.example
+PORT=8080
+DATABASE_URL=your_database_url
+GITHUB_CLIENT_ID=your_github_client_id
+GITHUB_CLIENT_SECRET=your_github_client_secret
+GITHUB_CALLBACK_URL=http://localhost:8080/github/callback
+GO_ENV="production" # For Production only
+FRONTEND_URL=http://localhost:5173
+MOBILE_URL=http://localhost:5173
+```
+
+### Local Development (.env)
+
+```bash .env
+PORT=8080
+DATABASE_URL=postgresql://postgres:mypassword@localhost:5432/privycode?sslmode=disable
+GITHUB_CLIENT_ID=Iv1.abc123def456
+GITHUB_CLIENT_SECRET=a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0
+GITHUB_CALLBACK_URL=http://localhost:8080/github/callback
+FRONTEND_URL=http://localhost:5173
+MOBILE_URL=http://localhost:5173
+```
+
+### Production (Railway)
+
+<Steps>
+  <Step title="Navigate to your Railway service">
+    Go to your project → Select your service → Variables tab
+  </Step>
+  
+  <Step title="Add variables">
+    ```bash
+    GO_ENV=production
+    PORT=8080
+    GITHUB_CLIENT_ID=Iv1.abc123def456
+    GITHUB_CLIENT_SECRET=a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0
+    GITHUB_CALLBACK_URL=https://your-app.up.railway.app/github/callback
+    FRONTEND_URL=https://privycode.com
+    MOBILE_URL=https://privycode.com
+    ```
+  </Step>
+  
+  <Step title="DATABASE_URL is auto-provided">
+    Railway automatically injects `DATABASE_URL` when you add a PostgreSQL service.
+  </Step>
+</Steps>
+
+### Production (Docker)
+
+<CodeGroup>
+```bash .env file
+# Create .env file
+GO_ENV=production
+PORT=8080
+DATABASE_URL=postgresql://user:pass@db-host:5432/privycode?sslmode=require
+GITHUB_CLIENT_ID=Iv1.abc123def456
+GITHUB_CLIENT_SECRET=a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0
+GITHUB_CALLBACK_URL=https://api.yourdomain.com/github/callback
+FRONTEND_URL=https://yourdomain.com
+MOBILE_URL=https://yourdomain.com
+
+# Run with .env file
+docker run -d --env-file .env privycode-server
+```
+
+```bash Command line
+# Pass environment variables directly
+docker run -d \
+  -e GO_ENV=production \
+  -e PORT=8080 \
+  -e DATABASE_URL="postgresql://user:pass@host:5432/db?sslmode=require" \
+  -e GITHUB_CLIENT_ID="Iv1.abc123def456" \
+  -e GITHUB_CLIENT_SECRET="secret" \
+  -e GITHUB_CALLBACK_URL="https://api.yourdomain.com/github/callback" \
+  -e FRONTEND_URL="https://yourdomain.com" \
+  -e MOBILE_URL="https://yourdomain.com" \
+  privycode-server
+```
+</CodeGroup>
+
+## Environment Variable Loading
+
+The server loads environment variables in the following order:
+
+<Steps>
+  <Step title="Check GO_ENV">
+    The server checks if `GO_ENV` is set to `production`
+  </Step>
+  
+  <Step title="Load .env file (development only)">
+    If `GO_ENV != "production"`, the server attempts to load `.env` from the project root using `github.com/joho/godotenv`
+  </Step>
+  
+  <Step title="Read from system environment">
+    All variables are read using `os.Getenv()`, which checks system environment variables
+  </Step>
+  
+  <Step title="Use defaults where applicable">
+    Some variables like `PORT` have default values if not set
+  </Step>
+</Steps>
+
+## Code References
+
+Here's where each environment variable is used in the codebase:
+
+### Database Configuration
+
+```go config/config.go:18-31
+func ConnectDB() {
+    // To only load .env file in local development
+    if os.Getenv("GO_ENV") != "production" {
+        err := godotenv.Load()
+        if err != nil {
+            log.Fatal("Error loading .env file")
+        }
+    }
+
+    dsn := os.Getenv("DATABASE_URL")
+    database, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+    if err != nil {
+        log.Fatalf("Error connecting to DB: %v", err)
+    }
+    // ...
+}
+```
+
+### GitHub OAuth Configuration
+
+```go internal/github/oauth.go:11-20
+func GetGitHubOAuthConfig() *oauth2.Config {
+    return &oauth2.Config{
+        ClientID:     os.Getenv("GITHUB_CLIENT_ID"),
+        ClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
+        Endpoint:     github.Endpoint,
+        RedirectURL:  os.Getenv("GITHUB_CALLBACK_URL"),
+        Scopes:       []string{"read:user", "repo"},
+    }
+}
+```
+
+### Server Port Configuration
+
+```go cmd/server/main.go:28-31
+port := os.Getenv("PORT")
+if port == "" {
+    port = "8080"
+}
+```
+
+## Validation Checklist
+
+Use this checklist to ensure your environment is configured correctly:
+
+<Steps>
+  <Step title="All required variables are set">
+    <Accordion title="Required variables">
+      - [ ] `DATABASE_URL`
+      - [ ] `GITHUB_CLIENT_ID`
+      - [ ] `GITHUB_CLIENT_SECRET`
+      - [ ] `GITHUB_CALLBACK_URL`
+      - [ ] `FRONTEND_URL`
+      - [ ] `MOBILE_URL`
+    </Accordion>
+  </Step>
+  
+  <Step title="GitHub OAuth is configured">
+    - [ ] Callback URL in `.env` matches GitHub OAuth App settings
+    - [ ] Client ID and Secret are correct
+    - [ ] OAuth scopes include `read:user` and `repo`
+  </Step>
+  
+  <Step title="Database connection works">
+    - [ ] PostgreSQL is running and accessible
+    - [ ] `DATABASE_URL` format is correct
+    - [ ] SSL mode is appropriate for your environment
+  </Step>
+  
+  <Step title="CORS is configured">
+    - [ ] `FRONTEND_URL` is added to CORS allowed origins in `internal/middleware/cors.go`
+    - [ ] No trailing slashes in URLs
+  </Step>
+  
+  <Step title="Production settings">
+    - [ ] `GO_ENV=production` is set in production
+    - [ ] Using `sslmode=require` for database in production
+    - [ ] All secrets are stored securely (not in code)
+  </Step>
+</Steps>
+
+## Security Best Practices
+
+<Warning>
+  **Never commit sensitive environment variables to version control!**
+</Warning>
+
+<CardGroup cols={2}>
+  <Card title="Use .gitignore" icon="eye-slash">
+    Ensure `.env` is in your `.gitignore` file
+  </Card>
+  
+  <Card title="Rotate secrets" icon="rotate">
+    Regularly rotate `GITHUB_CLIENT_SECRET` and database passwords
+  </Card>
+  
+  <Card title="Use secrets management" icon="vault">
+    Consider using Railway secrets, AWS Secrets Manager, or similar
+  </Card>
+  
+  <Card title="Minimal permissions" icon="shield">
+    Use database users with minimal required permissions
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Error loading .env file">
+    **Cause:** `.env` file not found or `GO_ENV=production` is set
+    
+    **Solution:**
+    - Ensure `.env` exists in project root
+    - Don't set `GO_ENV=production` in local development
+    - Check file permissions: `chmod 644 .env`
+  </Accordion>
+  
+  <Accordion title="Error connecting to DB">
+    **Cause:** Invalid `DATABASE_URL` or database not accessible
+    
+    **Solution:**
+    - Verify `DATABASE_URL` format
+    - Test connection: `psql "$DATABASE_URL"`
+    - Check if PostgreSQL is running
+    - Verify network/firewall settings
+  </Accordion>
+  
+  <Accordion title="GitHub OAuth errors">
+    **Cause:** Mismatch between callback URLs or invalid credentials
+    
+    **Solution:**
+    - Verify `GITHUB_CALLBACK_URL` exactly matches GitHub settings
+    - Regenerate client secret if needed
+    - Check OAuth app is not suspended
+  </Accordion>
+  
+  <Accordion title="CORS errors">
+    **Cause:** Frontend URL not in allowed origins
+    
+    **Solution:**
+    - Add your `FRONTEND_URL` to `internal/middleware/cors.go`
+    - Rebuild and restart server after changes
+    - Ensure no trailing slashes in URLs
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Setup Guide" icon="wrench" href="/guides/setup">
+    Follow the complete local setup guide
+  </Card>
+  <Card title="Deployment" icon="rocket" href="/guides/deployment">
+    Deploy to production with proper configuration
+  </Card>
+  <Card title="Security" icon="lock" href="/concepts/security">
+    Learn about security best practices
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/auth/github-login">
+    Explore available endpoints
+  </Card>
+</CardGroup>

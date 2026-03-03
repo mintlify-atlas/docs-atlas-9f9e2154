@@ -1,80 +1,384 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: 'Quickstart Guide'
+description: 'Get up and running with PrivyCode server in 5 minutes'
 ---
 
-## Get started in three steps
+## Overview
 
-Get your documentation site running locally and make your first customization.
+This guide will walk you through setting up the PrivyCode backend server, a Go-based API that enables secure, read-only sharing of private GitHub repositories through expiring viewer links.
 
-### Step 1: Set up your local environment
+## Prerequisites
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+Before you begin, ensure you have the following installed:
 
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+<CardGroup cols={3}>
+  <Card title="Go 1.23+" icon="golang" iconType="duotone">
+    Download from [golang.org](https://golang.org/dl/)
+  </Card>
+  <Card title="PostgreSQL" icon="database" iconType="duotone">
+    Version 12 or higher
+  </Card>
+  <Card title="Git" icon="git" iconType="duotone">
+    For cloning the repository
+  </Card>
 </CardGroup>
 
+<Warning>
+You'll also need to create a **GitHub OAuth App** to enable authentication. We'll cover this in the setup steps.
+</Warning>
+
+## Installation
+
+<Steps>
+  <Step title="Clone the Repository">
+    Clone the PrivyCode server repository to your local machine:
+
+    ```bash
+    git clone https://github.com/greatdaveo/privycode-server
+    cd privycode-server
+    ```
+  </Step>
+
+  <Step title="Install Dependencies">
+    Install all Go dependencies using Go modules:
+
+    ```bash
+    go mod tidy
+    ```
+
+    <Note>
+    This will download all required packages including GORM, godotenv, and PostgreSQL drivers as specified in `go.mod`.
+    </Note>
+  </Step>
+
+  <Step title="Create GitHub OAuth App">
+    To enable GitHub authentication, you need to create a GitHub OAuth application:
+
+    1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
+    2. Click **"New OAuth App"**
+    3. Fill in the application details:
+       - **Application name**: PrivyCode (or your preferred name)
+       - **Homepage URL**: `http://localhost:8080`
+       - **Authorization callback URL**: `http://localhost:8080/github/callback`
+    4. Click **"Register application"**
+    5. Note down your **Client ID** and generate a **Client Secret**
+
+    <Warning>
+    Keep your Client Secret secure! Never commit it to version control.
+    </Warning>
+  </Step>
+
+  <Step title="Setup PostgreSQL Database">
+    Create a new PostgreSQL database for PrivyCode:
+
+    ```bash
+    # Login to PostgreSQL
+    psql -U postgres
+
+    # Create database
+    CREATE DATABASE privycode;
+
+    # Exit psql
+    \q
+    ```
+
+    Your database URL will look like:
+    ```
+    postgresql://username:password@localhost:5432/privycode
+    ```
+  </Step>
+
+  <Step title="Configure Environment Variables">
+    Create a `.env` file in the project root with the following configuration:
+
+    ```bash .env
+    PORT=8080
+    DATABASE_URL=postgresql://username:password@localhost:5432/privycode
+    GITHUB_CLIENT_ID=your_github_client_id
+    GITHUB_CLIENT_SECRET=your_github_client_secret
+    GITHUB_CALLBACK_URL=http://localhost:8080/github/callback
+    GO_ENV=development
+    FRONTEND_URL=http://localhost:5173
+    MOBILE_URL=http://localhost:5173
+    ```
+
+    <Accordion title="Environment Variables Reference">
+      | Variable | Description | Example |
+      |----------|-------------|---------|
+      | `PORT` | Server port number | `8080` |
+      | `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:pass@localhost:5432/privycode` |
+      | `GITHUB_CLIENT_ID` | OAuth app client ID from GitHub | `Iv1.a1b2c3d4e5f6g7h8` |
+      | `GITHUB_CLIENT_SECRET` | OAuth app client secret from GitHub | `a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0` |
+      | `GITHUB_CALLBACK_URL` | OAuth callback URL | `http://localhost:8080/github/callback` |
+      | `GO_ENV` | Environment mode | `development` or `production` |
+      | `FRONTEND_URL` | Frontend application URL | `http://localhost:5173` |
+      | `MOBILE_URL` | Mobile application URL | `http://localhost:5173` |
+    </Accordion>
+
+    <Note>
+    Replace the placeholder values with your actual credentials. The `.env` file is git-ignored by default.
+    </Note>
+  </Step>
+
+  <Step title="Run Database Migrations">
+    Uncomment the migration line in `cmd/server/main.go` to create the database schema:
+
+    ```go cmd/server/main.go
+    func main() {
+        // To Connect to the DB
+        config.ConnectDB()
+
+        // For auto migrate to DB
+        config.RunMigrations() // Uncomment this line
+
+        // To set up HTTP router
+        mux := http.NewServeMux()
+        // ... rest of the code
+    }
+    ```
+
+    Then run the server once to execute migrations:
+
+    ```bash
+    go run cmd/server/main.go
+    ```
+
+    You should see:
+    ```
+    Connected to PostgreSQL successfully!!!
+    Migrations completed successfully
+    Server starting on :8080...
+    ```
+
+    <Note>
+    After the first run, you can comment out `config.RunMigrations()` again to avoid running migrations on every startup.
+    </Note>
+
+    The migration creates two tables:
+    - **users** - Stores GitHub authenticated users
+    - **viewer_links** - Stores shareable repository links with expiration and view limits
+  </Step>
+
+  <Step title="Start the Server">
+    Run the server in development mode:
+
+    ```bash
+    go run cmd/server/main.go
+    ```
+
+    For production, build and run the binary:
+
+    ```bash
+    # Build the binary
+    go build -o privycode-server cmd/server/main.go
+
+    # Run the binary
+    ./privycode-server
+    ```
+
+    <Check>
+    Server is now running on `http://localhost:8080`
+    </Check>
+  </Step>
+</Steps>
+
+## Testing Your Setup
+
+Verify that your server is running correctly:
+
+<CodeGroup>
+```bash Test Server Health
+curl http://localhost:8080/test
+```
+
+```bash Expected Response
+Welcome to PrivyCode 👋
+```
+</CodeGroup>
+
+### Test GitHub OAuth Flow
+
+<Steps>
+  <Step title="Initiate OAuth">
+    Visit the login endpoint in your browser:
+    ```
+    http://localhost:8080/github/login
+    ```
+    This will redirect you to GitHub for authorization.
+  </Step>
+
+  <Step title="Authorize Application">
+    Authorize the PrivyCode application on GitHub.
+  </Step>
+
+  <Step title="Get Your Token">
+    After successful authorization, you'll be redirected to the callback URL with a token in the query parameters.
+  </Step>
+</Steps>
+
+### Test Authenticated Endpoints
+
+Once you have a token, test the authenticated endpoints:
+
+<CodeGroup>
+```bash Get User Info
+curl -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+     http://localhost:8080/me
+```
+
+```bash Get Dashboard
+curl -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+     http://localhost:8080/dashboard
+```
+
+```bash Generate Viewer Link
+curl -X POST \
+     -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "repo_name": "username/repository",
+       "max_views": 10,
+       "expires_at": "2026-12-31T23:59:59Z"
+     }' \
+     http://localhost:8080/generate-viewer-link
+```
+</CodeGroup>
+
+## API Endpoints Overview
+
+Here's a quick reference of the available endpoints:
+
+### Authentication Endpoints
+
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| `GET` | `/test` | Health check endpoint | No |
+| `GET` | `/github/login` | Initiate GitHub OAuth flow | No |
+| `GET` | `/github/callback` | GitHub OAuth callback | No |
+| `GET` | `/me` | Get current user info | Yes |
+
+### Viewer Link Management
+
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| `GET` | `/dashboard` | Get all viewer links | Yes |
+| `POST` | `/generate-viewer-link` | Create new viewer link | Yes |
+| `PUT` | `/update-link/:id` | Update existing link | Yes |
+| `DELETE` | `/delete-link/:id` | Delete viewer link | Yes |
+
+### Public Viewer Endpoints
+
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| `GET` | `/view/:token` | View repository contents | No |
+| `GET` | `/view-files/:token/file?path=` | View specific file | No |
+| `GET` | `/view-folder/:token?path=` | Browse folders | No |
+| `GET` | `/view-info/:token` | Get repository info | No |
+
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+All authenticated endpoints require the `Authorization: Bearer <token>` header. See [Authentication](/concepts/authentication) for more details.
 </Note>
+
+## Project Structure
+
+Understanding the codebase structure:
+
+```
+privycode-server/
+├── cmd/
+│   └── server/
+│       └── main.go              # Application entry point
+├── config/
+│   └── config.go                # Database configuration and migrations
+├── internal/
+│   ├── handlers/                # HTTP request handlers
+│   │   ├── auth_handler.go      # GitHub OAuth handlers
+│   │   ├── dashboard_handler.go # Dashboard endpoint
+│   │   ├── me_handler.go        # User info endpoint
+│   │   └── viewer_handler.go    # Viewer link handlers
+│   ├── middleware/              # HTTP middleware
+│   │   ├── auth.go              # Authentication middleware
+│   │   └── cors.go              # CORS middleware
+│   ├── models/                  # Data models
+│   │   ├── user.go              # User model
+│   │   └── viewer_link.go       # ViewerLink model
+│   ├── routes/
+│   │   └── router.go            # Route definitions
+│   ├── github/
+│   │   └── oauth.go             # GitHub API integration
+│   └── utils/
+│       └── token.go             # Token utilities
+├── .env.example                 # Environment variables template
+├── go.mod                       # Go module dependencies
+└── README.md
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="book" href="/api/auth/github-login">
+    Explore the complete API documentation
+  </Card>
+  <Card title="Authentication" icon="shield-halved" href="/concepts/authentication">
+    Learn about OAuth and token management
+  </Card>
+  <Card title="Viewer Links" icon="link" href="/concepts/viewer-links">
+    Understand how viewer links work
+  </Card>
+  <Card title="Deployment" icon="rocket" href="/guides/deployment">
+    Deploy to production
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Database connection failed">
+    **Error**: `Error connecting to DB`
+
+    **Solutions**:
+    - Verify PostgreSQL is running: `pg_isready`
+    - Check your `DATABASE_URL` format is correct
+    - Ensure the database exists: `psql -l | grep privycode`
+    - Verify credentials have proper permissions
+  </Accordion>
+
+  <Accordion title="GitHub OAuth not working">
+    **Error**: GitHub redirects fail or show errors
+
+    **Solutions**:
+    - Verify `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are correct
+    - Check `GITHUB_CALLBACK_URL` matches your GitHub OAuth app settings
+    - Ensure callback URL is `http://localhost:8080/github/callback` for local development
+    - Verify your GitHub OAuth app is not suspended
+  </Accordion>
+
+  <Accordion title="Port already in use">
+    **Error**: `bind: address already in use`
+
+    **Solutions**:
+    - Change the `PORT` in your `.env` file
+    - Kill the process using port 8080: `lsof -ti:8080 | xargs kill -9`
+  </Accordion>
+
+  <Accordion title="Migrations not running">
+    **Error**: Tables not created in database
+
+    **Solutions**:
+    - Ensure `config.RunMigrations()` is uncommented in `cmd/server/main.go`
+    - Check database connection is successful before migrations run
+    - Verify GORM AutoMigrate logs in console output
+    - Manually check tables: `psql -d privycode -c "\dt"`
+  </Accordion>
+</AccordionGroup>
+
+## Need Help?
+
+<CardGroup cols={2}>
+  <Card title="GitHub Issues" icon="github" href="https://github.com/greatdaveo/privycode-server/issues">
+    Report bugs or request features
+  </Card>
+  <Card title="Developer" icon="user" href="https://github.com/greatdaveo">
+    Contact the maintainer
+  </Card>
+</CardGroup>

@@ -1,0 +1,100 @@
+---
+title: "View Repository"
+description: "Access repository contents via a public viewer link"
+---
+
+## Overview
+
+This endpoint allows recruiters and other stakeholders to view the root contents of a repository using a secure viewer token. No authentication is required - access is granted through the token itself.
+
+## Endpoint
+
+```
+GET /view/:token
+```
+
+## Path Parameters
+
+<ParamField path="token" type="string" required>
+  The unique viewer token generated when creating a viewer link. This token provides time-limited access to the repository.
+</ParamField>
+
+## How It Works
+
+1. The token is validated against the database
+2. Expiration date is checked
+3. View count is verified against max views (if set)
+4. View count is incremented
+5. Repository root contents are fetched from GitHub
+6. Contents are returned as JSON
+
+## Response
+
+Returns an array of repository contents at the root level.
+
+<ResponseField name="name" type="string">
+  The name of the file or folder
+</ResponseField>
+
+<ResponseField name="type" type="string">
+  Either "file" or "dir" indicating the content type
+</ResponseField>
+
+<ResponseField name="path" type="string">
+  The path to the content within the repository
+</ResponseField>
+
+<ResponseField name="url" type="string">
+  GitHub API URL for this content
+</ResponseField>
+
+## Example Request
+
+```bash
+curl https://api.privycode.com/view/abc123xyz456
+```
+
+## Example Response
+
+```json
+[
+  {
+    "name": "src",
+    "type": "dir",
+    "path": "src",
+    "url": "https://api.github.com/repos/username/repo/contents/src"
+  },
+  {
+    "name": "README.md",
+    "type": "file",
+    "path": "README.md",
+    "url": "https://api.github.com/repos/username/repo/contents/README.md"
+  },
+  {
+    "name": "package.json",
+    "type": "file",
+    "path": "package.json",
+    "url": "https://api.github.com/repos/username/repo/contents/package.json"
+  }
+]
+```
+
+## Error Responses
+
+<ResponseField name="400" type="error">
+  **Missing token** - No token provided in the URL
+</ResponseField>
+
+<ResponseField name="404" type="error">
+  **Invalid or expired link** - Token not found in database
+</ResponseField>
+
+<ResponseField name="403" type="error">
+  **Link has expired** - The token's expiration date has passed
+  
+  **View limit reached** - The maximum number of views has been exceeded
+</ResponseField>
+
+## Use Case
+
+Developers generate viewer links to share their private repositories with recruiters. The recruiter receives a URL containing the token and can browse the repository contents without needing a GitHub account or authentication.

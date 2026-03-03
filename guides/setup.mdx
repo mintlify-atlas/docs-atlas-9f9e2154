@@ -1,0 +1,255 @@
+---
+title: Local Development Setup
+description: Complete guide to setting up PrivyCode server on your local machine
+---
+
+## Prerequisites
+
+Before setting up PrivyCode locally, ensure you have the following installed:
+
+<CardGroup cols={2}>
+  <Card title="Go 1.23+" icon="golang">
+    Required for running the Go backend server
+  </Card>
+  <Card title="PostgreSQL" icon="database">
+    Database for storing users and viewer links
+  </Card>
+  <Card title="GitHub OAuth App" icon="github">
+    For authenticating users via GitHub
+  </Card>
+  <Card title="Git" icon="git">
+    For cloning the repository
+  </Card>
+</CardGroup>
+
+## Step 1: Clone the Repository
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/greatdaveo/privycode-server
+    cd privycode-server
+    ```
+  </Step>
+
+  <Step title="Install Go dependencies">
+    ```bash
+    go mod tidy
+    ```
+    
+    This will download all required dependencies including:
+    - `gorm.io/gorm` - ORM for database operations
+    - `gorm.io/driver/postgres` - PostgreSQL driver
+    - `github.com/joho/godotenv` - Environment variable loading
+    - `golang.org/x/oauth2` - GitHub OAuth2 integration
+  </Step>
+</Steps>
+
+## Step 2: Set Up PostgreSQL Database
+
+<Steps>
+  <Step title="Create a PostgreSQL database">
+    ```sql
+    CREATE DATABASE privycode;
+    ```
+  </Step>
+
+  <Step title="Get your database connection URL">
+    Your `DATABASE_URL` should follow this format:
+    
+    ```bash
+    postgresql://username:password@localhost:5432/privycode?sslmode=disable
+    ```
+    
+    <Warning>
+      For local development, `sslmode=disable` is acceptable. For production, always use SSL connections.
+    </Warning>
+  </Step>
+</Steps>
+
+## Step 3: Create GitHub OAuth App
+
+<Steps>
+  <Step title="Go to GitHub Developer Settings">
+    Navigate to [GitHub Developer Settings](https://github.com/settings/developers) → OAuth Apps → New OAuth App
+  </Step>
+
+  <Step title="Configure your OAuth app">
+    <ParamField body="Application name" type="string" required>
+      PrivyCode Local (or any name you prefer)
+    </ParamField>
+    
+    <ParamField body="Homepage URL" type="string" required>
+      `http://localhost:5173` (or your frontend URL)
+    </ParamField>
+    
+    <ParamField body="Authorization callback URL" type="string" required>
+      `http://localhost:8080/github/callback`
+    </ParamField>
+  </Step>
+
+  <Step title="Save your credentials">
+    After creating the app, copy:
+    - **Client ID**
+    - **Client Secret** (click "Generate a new client secret")
+    
+    You'll need these for your `.env` file.
+  </Step>
+</Steps>
+
+## Step 4: Configure Environment Variables
+
+<Steps>
+  <Step title="Create .env file">
+    Copy the example environment file:
+    
+    ```bash
+    cp .env.example .env
+    ```
+  </Step>
+
+  <Step title="Update .env with your values">
+    ```bash .env
+    PORT=8080
+    DATABASE_URL=postgresql://username:password@localhost:5432/privycode?sslmode=disable
+    GITHUB_CLIENT_ID=your_github_client_id
+    GITHUB_CLIENT_SECRET=your_github_client_secret
+    GITHUB_CALLBACK_URL=http://localhost:8080/github/callback
+    FRONTEND_URL=http://localhost:5173
+    MOBILE_URL=http://localhost:5173
+    ```
+    
+    <Note>
+      Do not set `GO_ENV=production` for local development. The server will automatically load the `.env` file when `GO_ENV` is not set to production.
+    </Note>
+  </Step>
+</Steps>
+
+## Step 5: Run Database Migrations
+
+<Steps>
+  <Step title="Uncomment migration line">
+    Open `cmd/server/main.go` and uncomment the migration line:
+    
+    ```go cmd/server/main.go
+    func main() {
+        // To Connect to the DB
+        config.ConnectDB()
+    
+        // For auto migrate to DB
+        config.RunMigrations() // Uncomment this line
+    
+        // ... rest of the code
+    }
+    ```
+  </Step>
+
+  <Step title="Run the server once to migrate">
+    ```bash
+    go run cmd/server/main.go
+    ```
+    
+    You should see:
+    ```
+    Connected to PostgreSQL successfully!!!
+    Migrations completed successfully
+    Server starting on :8080...
+    ```
+  </Step>
+
+  <Step title="Comment out migration line">
+    After the first run, comment out the migration line again to avoid running migrations on every server restart:
+    
+    ```go cmd/server/main.go
+    // config.RunMigrations()
+    ```
+  </Step>
+</Steps>
+
+## Step 6: Start the Development Server
+
+<CodeGroup>
+```bash Standard
+go run cmd/server/main.go
+```
+
+```bash With live reload (using air)
+# Install air first
+go install github.com/cosmtrek/air@latest
+
+# Run with air
+air
+```
+</CodeGroup>
+
+The server will start on `http://localhost:8080`
+
+<Check>
+  Your server is now running! You should see:
+  ```
+  Connected to PostgreSQL successfully!!!
+  Server starting on :8080...
+  ```
+</Check>
+
+## Testing the API
+
+<Steps>
+  <Step title="Test the health check">
+    ```bash
+    curl http://localhost:8080/
+    ```
+  </Step>
+
+  <Step title="Test GitHub OAuth login">
+    Visit `http://localhost:8080/github/login` in your browser. You should be redirected to GitHub for authentication.
+  </Step>
+</Steps>
+
+## Common Issues
+
+<AccordionGroup>
+  <Accordion title="Error loading .env file">
+    Make sure your `.env` file exists in the project root and is not named `.env.txt` or similar.
+  </Accordion>
+
+  <Accordion title="Error connecting to DB">
+    - Verify PostgreSQL is running: `psql -U postgres -c "SELECT 1;"`
+    - Check your `DATABASE_URL` format
+    - Ensure the database exists: `psql -U postgres -l`
+  </Accordion>
+
+  <Accordion title="GitHub OAuth errors">
+    - Verify your `GITHUB_CALLBACK_URL` matches exactly what's in GitHub OAuth settings
+    - Check that `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are correct
+    - Ensure your frontend URL is in the CORS allowed origins
+  </Accordion>
+
+  <Accordion title="Port already in use">
+    Change the `PORT` in your `.env` file or kill the process using port 8080:
+    ```bash
+    # Find process on port 8080
+    lsof -i :8080
+    
+    # Kill it
+    kill -9 <PID>
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Environment Variables" icon="gear" href="/guides/environment-variables">
+    Learn about all available configuration options
+  </Card>
+  <Card title="Deployment" icon="rocket" href="/guides/deployment">
+    Deploy your server to production
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/auth/github-login">
+    Explore the available API endpoints
+  </Card>
+  <Card title="Authentication" icon="lock" href="/concepts/authentication">
+    Understand how authentication works
+  </Card>
+</CardGroup>

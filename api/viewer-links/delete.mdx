@@ -1,0 +1,55 @@
+---
+title: "Delete Viewer Link"
+description: "Soft delete a viewer link to revoke access"
+---
+
+## DELETE /delete-link/:id
+
+Soft deletes a viewer link, immediately revoking access for anyone attempting to use the link. The link record is retained in the database with a deletion timestamp.
+
+### Authentication
+
+Requires JWT authentication token in the Authorization header.
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  The unique identifier of the viewer link to delete
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  Confirmation message indicating successful deletion
+</ResponseField>
+
+### Example Request
+
+```bash
+curl -X DELETE http://localhost:8080/delete-link/1 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+### Example Response
+
+```json
+{
+  "message": "Viewer link deleted"
+}
+```
+
+### Status Codes
+
+- `200 OK` - Viewer link successfully deleted
+- `400 Bad Request` - Invalid ID format
+- `401 Unauthorized` - Missing or invalid authentication token
+- `404 Not Found` - Viewer link with specified ID not found
+- `500 Internal Server Error` - Failed to delete link in database
+
+### Notes
+
+- This is a soft delete operation - the record remains in the database with a `deleted_at` timestamp
+- Once deleted, the viewer link token will no longer provide access to the repository
+- Users attempting to access a deleted link will receive a "This link has been deleted" error (HTTP 410 Gone)
+- Soft-deleted links are excluded from dashboard queries by default
+- The deletion is immediate and cannot be undone through the API

@@ -1,0 +1,95 @@
+---
+title: "View File"
+description: "Access individual file contents via a viewer link"
+---
+
+## Overview
+
+This endpoint retrieves the raw content of a specific file within a repository using a viewer token. It's used by recruiters to read source code files without authentication.
+
+## Endpoint
+
+```
+GET /view-files/:token/file?path={file_path}
+```
+
+## Path Parameters
+
+<ParamField path="token" type="string" required>
+  The unique viewer token that grants access to the repository
+</ParamField>
+
+## Query Parameters
+
+<ParamField query="path" type="string" required>
+  The file path within the repository (e.g., "src/main.go" or "README.md")
+</ParamField>
+
+## How It Works
+
+1. Token is extracted from URL path
+2. File path is read from query parameters
+3. Link is validated (including soft-deleted check)
+4. Expiration and view limits are verified
+5. File content is fetched from GitHub API
+6. Raw file content is returned as plain text
+
+## Response
+
+Returns the raw file content as `text/plain`.
+
+The response body contains the actual file contents without any JSON wrapping.
+
+## Example Request
+
+```bash
+curl "https://api.privycode.com/view-files/abc123xyz456/file?path=src/main.go"
+```
+
+## Example Response
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+    fmt.Println("Hello, World!")
+}
+```
+
+## Error Responses
+
+<ResponseField name="400" type="error">
+  **Invalid viewer URL** - Malformed URL structure
+  
+  **Missing token or path** - Either token or path query parameter is missing
+</ResponseField>
+
+<ResponseField name="404" type="error">
+  **Invalid link or deleted link** - Token not found or link has been soft-deleted
+</ResponseField>
+
+<ResponseField name="410" type="error">
+  **This link has been deleted** - The viewer link was deleted by the owner
+</ResponseField>
+
+<ResponseField name="403" type="error">
+  **This link has expired** - Token expiration date has passed
+  
+  **View limit reached** - Maximum views exceeded
+</ResponseField>
+
+<ResponseField name="GitHub errors" type="error">
+  Proxied errors from GitHub API if the file cannot be accessed
+</ResponseField>
+
+## Use Case
+
+When a recruiter clicks on a file in the repository viewer, this endpoint fetches and displays the file's contents. The raw text format allows for syntax highlighting on the frontend.
+
+## Notes
+
+- This endpoint uses `Unscoped()` query to check for soft-deleted links
+- Returns raw file content with `Content-Type: text/plain`
+- GitHub API is called with `Accept: application/vnd.github.v3.raw` header

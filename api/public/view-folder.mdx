@@ -1,0 +1,138 @@
+---
+title: "View Folder"
+description: "List contents of a folder within a shared repository"
+---
+
+## Overview
+
+This endpoint lists the contents of a specific folder within a repository accessible via a viewer token. It enables navigation through the directory structure.
+
+## Endpoint
+
+```
+GET /view-folder/:token?path={folder_path}
+```
+
+## Path Parameters
+
+<ParamField path="token" type="string" required>
+  The unique viewer token that grants access to the repository
+</ParamField>
+
+## Query Parameters
+
+<ParamField query="path" type="string" optional>
+  The folder path within the repository (e.g., "src/handlers"). If omitted, returns root contents.
+</ParamField>
+
+## How It Works
+
+1. Token is extracted from URL
+2. Folder path is read from query parameters
+3. Link validity is verified
+4. Expiration and view count limits are checked
+5. Folder contents are fetched from GitHub
+6. Contents array is returned as JSON
+
+## Response
+
+Returns the raw GitHub API response containing folder contents.
+
+<ResponseField name="name" type="string">
+  Name of the file or subdirectory
+</ResponseField>
+
+<ResponseField name="path" type="string">
+  Full path within the repository
+</ResponseField>
+
+<ResponseField name="type" type="string">
+  Either "file" or "dir"
+</ResponseField>
+
+<ResponseField name="size" type="number">
+  Size in bytes (for files)
+</ResponseField>
+
+<ResponseField name="sha" type="string">
+  Git SHA hash of the content
+</ResponseField>
+
+<ResponseField name="url" type="string">
+  GitHub API URL for this item
+</ResponseField>
+
+<ResponseField name="html_url" type="string">
+  GitHub web URL for this item
+</ResponseField>
+
+<ResponseField name="git_url" type="string">
+  Git API URL for this item
+</ResponseField>
+
+<ResponseField name="download_url" type="string">
+  Direct download URL (for files)
+</ResponseField>
+
+## Example Request
+
+```bash
+curl "https://api.privycode.com/view-folder/abc123xyz456?path=src/handlers"
+```
+
+## Example Response
+
+```json
+[
+  {
+    "name": "user_handler.go",
+    "path": "src/handlers/user_handler.go",
+    "type": "file",
+    "size": 2048,
+    "sha": "a1b2c3d4e5f6",
+    "url": "https://api.github.com/repos/user/repo/contents/src/handlers/user_handler.go",
+    "html_url": "https://github.com/user/repo/blob/main/src/handlers/user_handler.go",
+    "git_url": "https://api.github.com/repos/user/repo/git/blobs/a1b2c3d4e5f6",
+    "download_url": "https://raw.githubusercontent.com/user/repo/main/src/handlers/user_handler.go"
+  },
+  {
+    "name": "auth_handler.go",
+    "path": "src/handlers/auth_handler.go",
+    "type": "file",
+    "size": 1536,
+    "sha": "b2c3d4e5f6a1",
+    "url": "https://api.github.com/repos/user/repo/contents/src/handlers/auth_handler.go",
+    "html_url": "https://github.com/user/repo/blob/main/src/handlers/auth_handler.go",
+    "git_url": "https://api.github.com/repos/user/repo/git/blobs/b2c3d4e5f6a1",
+    "download_url": "https://raw.githubusercontent.com/user/repo/main/src/handlers/auth_handler.go"
+  }
+]
+```
+
+## Error Responses
+
+<ResponseField name="400" type="error">
+  **Missing token** - No token provided in URL
+</ResponseField>
+
+<ResponseField name="404" type="error">
+  **Invalid viewer link** - Token not found in database
+</ResponseField>
+
+<ResponseField name="403" type="error">
+  **Link expired or view limit reached** - Token has expired or max views exceeded
+</ResponseField>
+
+<ResponseField name="GitHub errors" type="error">
+  Errors from GitHub API if the folder cannot be accessed
+</ResponseField>
+
+## Use Case
+
+When a recruiter clicks on a folder in the repository browser, this endpoint fetches the folder's contents, allowing them to navigate deeper into the project structure.
+
+## Notes
+
+- Response is directly proxied from GitHub API
+- Content-Type is set to `application/json`
+- View count is NOT incremented on folder views (only on initial repo access)

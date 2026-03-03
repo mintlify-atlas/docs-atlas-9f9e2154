@@ -1,0 +1,83 @@
+---
+title: "View Info"
+description: "Get repository owner and name information from a viewer token"
+---
+
+## Overview
+
+This endpoint retrieves metadata about the repository associated with a viewer token, specifically the GitHub username of the owner and the repository name. This is useful for displaying context to the viewer.
+
+## Endpoint
+
+```
+GET /view-info/:token
+```
+
+## Path Parameters
+
+<ParamField path="token" type="string" required>
+  The unique viewer token that grants access to the repository
+</ParamField>
+
+## How It Works
+
+1. Token is extracted from the URL path
+2. Viewer link is looked up in the database
+3. Associated user is retrieved
+4. GitHub username and repository name are returned
+
+## Response
+
+Returns a JSON object with repository metadata.
+
+<ResponseField name="github_username" type="string">
+  The GitHub username of the repository owner
+</ResponseField>
+
+<ResponseField name="repo_name" type="string">
+  The name of the repository being shared
+</ResponseField>
+
+## Example Request
+
+```bash
+curl https://api.privycode.com/view-info/abc123xyz456
+```
+
+## Example Response
+
+```json
+{
+  "github_username": "johndoe",
+  "repo_name": "my-portfolio-project"
+}
+```
+
+## Error Responses
+
+<ResponseField name="400" type="error">
+  **Missing token** - No token provided in the URL
+</ResponseField>
+
+<ResponseField name="404" type="error">
+  **Invalid or expired link** - Token not found in database
+</ResponseField>
+
+<ResponseField name="500" type="error">
+  **User not found** - The user associated with the viewer link no longer exists
+</ResponseField>
+
+## Use Case
+
+This endpoint is typically called by the frontend when a recruiter first accesses a viewer link. It provides the necessary information to display a header like "Viewing: johndoe/my-portfolio-project" in the UI.
+
+## Notes
+
+- This endpoint does NOT check expiration dates or view limits
+- It does NOT increment the view count
+- It's a lightweight metadata endpoint for UI context
+- Can be used to verify a token exists before attempting to load repository contents
+
+## Security Considerations
+
+While this endpoint doesn't check expiration, it only reveals the GitHub username and repository name, which are typically public information. The actual repository contents are protected by the other endpoints that do enforce expiration and view limits.

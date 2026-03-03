@@ -1,0 +1,68 @@
+---
+title: "Generate Viewer Link"
+description: "Create a new viewer link for sharing a private GitHub repository"
+---
+
+## POST /generate-viewer-link
+
+Generates a secure viewer link that allows temporary access to a private GitHub repository. The link includes configurable expiration time and view limits.
+
+### Authentication
+
+Requires JWT authentication token in the Authorization header.
+
+### Request Body
+
+<ParamField body="repo_name" type="string" required>
+  The name of the GitHub repository to share (without username/org prefix)
+</ParamField>
+
+<ParamField body="expires_in_days" type="integer" default="3">
+  Number of days until the link expires. Defaults to 3 days if not provided or if value is 0 or negative.
+</ParamField>
+
+<ParamField body="max_views" type="integer">
+  Maximum number of times the link can be accessed. Set to 0 or omit for unlimited views.
+</ParamField>
+
+### Response
+
+<ResponseField name="viewer_url" type="string">
+  The generated viewer URL that can be shared to grant repository access
+</ResponseField>
+
+### Example Request
+
+```bash
+curl -X POST http://localhost:8080/generate-viewer-link \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repo_name": "my-private-repo",
+    "expires_in_days": 7,
+    "max_views": 10
+  }'
+```
+
+### Example Response
+
+```json
+{
+  "viewer_url": "http://localhost:8080/view/abc123def456ghi789jkl"
+}
+```
+
+### Status Codes
+
+- `201 Created` - Viewer link successfully generated
+- `400 Bad Request` - Invalid input (missing repo_name or invalid JSON)
+- `401 Unauthorized` - Missing or invalid authentication token
+- `404 Not Found` - Repository not found or inaccessible
+- `500 Internal Server Error` - Failed to create viewer link in database
+
+### Notes
+
+- The endpoint verifies that the repository exists and is accessible before creating the link
+- The repository must belong to the authenticated user
+- Generated tokens are cryptographically secure and unique
+- Each link is associated with the authenticated user's account

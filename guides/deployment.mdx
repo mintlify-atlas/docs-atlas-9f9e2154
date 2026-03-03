@@ -1,0 +1,444 @@
+---
+title: Production Deployment
+description: Deploy PrivyCode server to production using Docker and Railway
+---
+
+## Deployment Options
+
+PrivyCode server can be deployed using multiple methods:
+
+<CardGroup cols={2}>
+  <Card title="Railway" icon="train" color="#A259FF">
+    One-click deployment with Railway (Recommended)
+  </Card>
+  <Card title="Docker" icon="docker" color="#2496ED">
+    Deploy anywhere using Docker containers
+  </Card>
+  <Card title="VPS" icon="server">
+    Deploy on any VPS (DigitalOcean, AWS, etc.)
+  </Card>
+  <Card title="Fly.io" icon="plane">
+    Deploy on Fly.io with automatic scaling
+  </Card>
+</CardGroup>
+
+## Deploy with Railway (Recommended)
+
+Railway provides the easiest deployment experience with automatic builds and PostgreSQL provisioning.
+
+<Steps>
+  <Step title="Create a Railway account">
+    Visit [Railway](https://railway.app) and sign up with your GitHub account.
+  </Step>
+
+  <Step title="Create a new project">
+    Click **New Project** → **Deploy from GitHub repo** → Select your PrivyCode repository
+  </Step>
+
+  <Step title="Add PostgreSQL database">
+    In your Railway project:
+    - Click **New** → **Database** → **Add PostgreSQL**
+    - Railway will automatically provision a PostgreSQL instance
+    - The `DATABASE_URL` will be automatically injected as an environment variable
+  </Step>
+
+  <Step title="Configure environment variables">
+    Go to your service → **Variables** tab and add:
+    
+    ```bash
+    GO_ENV=production
+    PORT=8080
+    GITHUB_CLIENT_ID=your_github_client_id
+    GITHUB_CLIENT_SECRET=your_github_client_secret
+    GITHUB_CALLBACK_URL=https://your-app.railway.app/github/callback
+    FRONTEND_URL=https://your-frontend-url.com
+    MOBILE_URL=https://your-frontend-url.com
+    ```
+    
+    <Warning>
+      `DATABASE_URL` is automatically provided by Railway when you add PostgreSQL. Do not override it unless necessary.
+    </Warning>
+  </Step>
+
+  <Step title="Update GitHub OAuth callback URL">
+    Go to your [GitHub OAuth App settings](https://github.com/settings/developers) and update:
+    - **Homepage URL**: Your frontend production URL
+    - **Authorization callback URL**: `https://your-app.railway.app/github/callback`
+  </Step>
+
+  <Step title="Deploy">
+    Railway will automatically deploy your app. You can monitor the build logs in the **Deployments** tab.
+    
+    <Check>
+      Your app will be available at `https://your-app.railway.app`
+    </Check>
+  </Step>
+
+  <Step title="Run migrations">
+    You need to run migrations once after the first deployment:
+    
+    1. Temporarily uncomment the migration line in `cmd/server/main.go`:
+       ```go
+       config.RunMigrations()
+       ```
+    2. Push the change to trigger a redeployment
+    3. After successful deployment, comment it out again and push
+  </Step>
+</Steps>
+
+### Railway Configuration File
+
+The repository includes a `railway.json` configuration file:
+
+```json railway.json
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "project": "a4937608-3ed2-4de0-95a9-27e1f0972b99",
+  "service": "privycode-server",
+  "environment": "production"
+}
+```
+
+This file helps Railway identify the service and environment settings.
+
+## Deploy with Docker
+
+PrivyCode includes a production-ready Dockerfile using multi-stage builds for optimal image size.
+
+### Dockerfile Overview
+
+```dockerfile Dockerfile
+# Build stage
+FROM golang:1.23-alpine AS builder
+
+WORKDIR /app
+
+# Install git (for some Go dependencies)
+RUN apk add --no-cache git
+
+# Copy go mod files first for better caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the binary
+RUN CGO_ENABLED=0 GOOS=linux go build -o main ./cmd/server
+
+# Production stage
+FROM alpine:latest
+
+WORKDIR /app
+
+# Install ca-certificates for HTTPS requests
+RUN apk --no-cache add ca-certificates
+
+# Copy binary from builder
+COPY --from=builder /app/main .
+
+# Expose port
+EXPOSE 8080
+
+# Run the binary
+CMD ["./main"]
+```
+
+<Note>
+  This multi-stage build:
+  - Uses `golang:1.23-alpine` for building (small base image)
+  - Compiles a static binary with `CGO_ENABLED=0`
+  - Uses `alpine:latest` for the final image (only ~5MB base)
+  - Results in a final image size of ~20MB
+</Note>
+
+### Build and Run with Docker
+
+<Steps>
+  <Step title="Build the Docker image">
+    ```bash
+    docker build -t privycode-server .
+    ```
+  </Step>
+
+  <Step title="Run with environment variables">
+    <CodeGroup>
+    ```bash Using .env file
+    docker run -d \
+      --name privycode-server \
+      -p 8080:8080 \
+      --env-file .env \
+      privycode-server
+    ```
+
+    ```bash Using -e flags
+    docker run -d \
+      --name privycode-server \
+      -p 8080:8080 \
+      -e GO_ENV=production \
+      -e PORT=8080 \
+      -e DATABASE_URL="postgresql://user:pass@host:5432/dbname" \
+      -e GITHUB_CLIENT_ID="your_client_id" \
+      -e GITHUB_CLIENT_SECRET="your_secret" \
+      -e GITHUB_CALLBACK_URL="https://yourdomain.com/github/callback" \
+      -e FRONTEND_URL="https://yourdomain.com" \
+      -e MOBILE_URL="https://yourdomain.com" \
+      privycode-server
+    ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Verify the container is running">
+    ```bash
+    docker ps
+    docker logs privycode-server
+    ```
+    
+    You should see:
+    ```
+    Connected to PostgreSQL successfully!!!
+    Server starting on :8080...
+    ```
+  </Step>
+</Steps>
+
+### Docker Compose (Full Stack)
+
+For a complete setup with PostgreSQL:
+
+```yaml docker-compose.yml
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: privycode
+      POSTGRES_USER: privycode
+      POSTGRES_PASSWORD: your_secure_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U privycode"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - GO_ENV=production
+      - PORT=8080
+      - DATABASE_URL=postgresql://privycode:your_secure_password@db:5432/privycode?sslmode=disable
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+      - GITHUB_CALLBACK_URL=${GITHUB_CALLBACK_URL}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - MOBILE_URL=${MOBILE_URL}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+```
+
+Run with:
+
+```bash
+docker-compose up -d
+```
+
+## Deploy on VPS (DigitalOcean, AWS, etc.)
+
+<Steps>
+  <Step title="Set up your VPS">
+    - Create a VPS instance (Ubuntu 22.04 recommended)
+    - SSH into your server
+    - Install Docker:
+      ```bash
+      curl -fsSL https://get.docker.com -o get-docker.sh
+      sh get-docker.sh
+      ```
+  </Step>
+
+  <Step title="Set up PostgreSQL">
+    Option 1: Use a managed database (recommended)
+    - DigitalOcean Managed Databases
+    - AWS RDS
+    - Supabase PostgreSQL
+    
+    Option 2: Run PostgreSQL in Docker
+    ```bash
+    docker run -d \
+      --name privycode-db \
+      -e POSTGRES_DB=privycode \
+      -e POSTGRES_PASSWORD=your_secure_password \
+      -v pgdata:/var/lib/postgresql/data \
+      -p 5432:5432 \
+      postgres:15-alpine
+    ```
+  </Step>
+
+  <Step title="Clone and build">
+    ```bash
+    git clone https://github.com/greatdaveo/privycode-server
+    cd privycode-server
+    docker build -t privycode-server .
+    ```
+  </Step>
+
+  <Step title="Create .env file">
+    ```bash
+    nano .env
+    ```
+    
+    Add your production environment variables (see [Environment Variables](/guides/environment-variables)).
+  </Step>
+
+  <Step title="Run the container">
+    ```bash
+    docker run -d \
+      --name privycode-server \
+      --restart unless-stopped \
+      -p 8080:8080 \
+      --env-file .env \
+      privycode-server
+    ```
+  </Step>
+
+  <Step title="Set up Nginx reverse proxy (optional)">
+    ```nginx
+    server {
+        listen 80;
+        server_name api.yourdomain.com;
+
+        location / {
+            proxy_pass http://localhost:8080;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host $host;
+            proxy_cache_bypass $http_upgrade;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+    ```
+    
+    Then get SSL certificate:
+    ```bash
+    sudo certbot --nginx -d api.yourdomain.com
+    ```
+  </Step>
+</Steps>
+
+## Post-Deployment Checklist
+
+<Steps>
+  <Step title="Run database migrations">
+    Ensure migrations have been run on your production database.
+  </Step>
+
+  <Step title="Update GitHub OAuth settings">
+    Update callback URL to your production domain.
+  </Step>
+
+  <Step title="Update CORS allowed origins">
+    If your frontend is on a different domain, verify it's in the CORS middleware:
+    
+    ```go internal/middleware/cors.go
+    allowedOrigins := map[string]bool{
+        "https://privycode.com":     true,
+        "https://www.privycode.com": true,
+        // Add your domain here
+    }
+    ```
+  </Step>
+
+  <Step title="Test critical endpoints">
+    ```bash
+    # Health check
+    curl https://your-api.com/
+    
+    # GitHub OAuth
+    curl https://your-api.com/github/login
+    ```
+  </Step>
+
+  <Step title="Monitor logs">
+    <CodeGroup>
+    ```bash Railway
+    # View in Railway dashboard → Deployments → Logs
+    ```
+    
+    ```bash Docker
+    docker logs -f privycode-server
+    ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Set up monitoring (optional)">
+    Consider using:
+    - Railway built-in metrics
+    - Sentry for error tracking
+    - UptimeRobot for uptime monitoring
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Database connection errors">
+    - Verify `DATABASE_URL` format is correct
+    - Check if database is accessible from your server
+    - For Railway: ensure PostgreSQL service is linked
+    - Check SSL mode settings (`sslmode=require` for production)
+  </Accordion>
+
+  <Accordion title="GitHub OAuth not working">
+    - Verify callback URL matches exactly (including https://)
+    - Check if `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are correct
+    - Ensure your domain is not blocked by GitHub
+  </Accordion>
+
+  <Accordion title="CORS errors from frontend">
+    - Add your frontend domain to `internal/middleware/cors.go`
+    - Rebuild and redeploy after changing CORS settings
+    - Verify `FRONTEND_URL` environment variable is correct
+  </Accordion>
+
+  <Accordion title="Container exits immediately">
+    Check logs for errors:
+    ```bash
+    docker logs privycode-server
+    ```
+    
+    Common issues:
+    - Missing required environment variables
+    - Database connection failure
+    - Port already in use
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Environment Variables" icon="gear" href="/guides/environment-variables">
+    Complete reference for all configuration options
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/auth/github-login">
+    Explore available endpoints
+  </Card>
+  <Card title="Setup Guide" icon="wrench" href="/guides/setup">
+    Local development setup
+  </Card>
+  <Card title="Security" icon="shield" href="/concepts/security">
+    Production security best practices
+  </Card>
+</CardGroup>

@@ -1,0 +1,107 @@
+---
+title: "Get Current User"
+description: "Retrieve authenticated user information"
+---
+
+## Endpoint
+
+```
+GET /me
+```
+
+Returns the current authenticated user's information based on the provided access token.
+
+### Authentication
+
+**Required.** This endpoint requires a valid GitHub access token obtained through the OAuth flow.
+
+Include the token in the Authorization header:
+
+```
+Authorization: Bearer {github_token}
+```
+
+## Response
+
+<ResponseField name="github_username" type="string">
+  The user's GitHub username.
+</ResponseField>
+
+<ResponseField name="email" type="string">
+  The user's email address (from GitHub or generated fallback).
+</ResponseField>
+
+### Success Response
+
+```json
+{
+  "github_username": "octocat",
+  "email": "octocat@github.com"
+}
+```
+
+## Error Responses
+
+### 401 Unauthorized - Missing Token
+
+```
+Unauthorized: Missing token
+```
+
+Returned when the Authorization header is missing or doesn't start with "Bearer ".
+
+### 401 Unauthorized - Invalid Token
+
+```
+Unauthorized: Invalid token
+```
+
+Returned when the provided token doesn't match any user in the database.
+
+### 401 Unauthorized - User Not Found
+
+```
+Unauthorized
+```
+
+Returned when the user context cannot be retrieved (should not occur if token is valid).
+
+## Example Request
+
+```bash cURL
+curl -X GET 'https://api.privycode.com/me' \
+  -H 'Authorization: Bearer gho_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+```
+
+### Response
+
+```json
+{
+  "github_username": "octocat",
+  "email": "octocat@users.noreply.github.com"
+}
+```
+
+## Authentication Middleware
+
+This endpoint uses the `AuthMiddleware` which:
+
+1. Extracts the token from the `Authorization` header
+2. Validates the token format (must be `Bearer {token}`)
+3. Looks up the user in the database by `github_token`
+4. Attaches the user object to the request context
+5. Returns 401 if any validation fails
+
+## Implementation Details
+
+- Token is matched against the `github_token` field in the database
+- The GitHub access token from OAuth flow serves as the authentication token
+- User object is stored in request context for handler access
+- Only returns basic user information (username and email)
+
+## Use Cases
+
+- Verify authentication status
+- Retrieve current user information for UI display
+- Validate token before making other authenticated requests
+- Check which GitHub account is currently authenticated

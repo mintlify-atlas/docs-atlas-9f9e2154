@@ -1,0 +1,114 @@
+---
+title: "GitHub Callback"
+description: "Handle GitHub OAuth callback and create/update user session"
+---
+
+## Endpoint
+
+```
+GET /github/callback
+```
+
+Handles the OAuth callback from GitHub, exchanges the authorization code for an access token, creates or updates the user record, and redirects to the application frontend with the token.
+
+### Authentication
+
+No authentication required (this endpoint creates the authentication).
+
+## Query Parameters
+
+<ParamField query="code" type="string" required>
+  Authorization code provided by GitHub OAuth flow.
+</ParamField>
+
+<ParamField query="state" type="string" required>
+  CSRF protection state parameter. If prefixed with `"mobile-"`, the user will be redirected to the mobile app URL.
+</ParamField>
+
+## Response
+
+This endpoint returns an HTTP redirect (302 Found) to the frontend application with the access token as a query parameter.
+
+### Redirect Destinations
+
+**Web Client:**
+```
+{FRONTEND_URL}/dashboard?token={access_token}
+```
+
+**Mobile Client:**
+```
+{MOBILE_URL}?token={access_token}
+```
+
+## Error Responses
+
+<ResponseField name="error" type="string">
+  Error message describing what went wrong.
+</ResponseField>
+
+### Error Cases
+
+| Status Code | Description |
+|-------------|-------------|
+| 400 | Missing code parameter in URL |
+| 500 | Failed to exchange code for token |
+| 500 | Failed to fetch user info from GitHub |
+| 500 | Invalid GitHub response (missing login) |
+| 500 | Database error during user creation/update |
+
+## User Creation Flow
+
+1. Exchanges authorization code for GitHub access token
+2. Fetches user information from GitHub API (`/user` endpoint)
+3. Checks if user exists in database by GitHub username
+4. If new user:
+   - Creates user record with email, GitHub username, and access token
+   - If GitHub doesn't provide email, uses `{username}@users.noreply.github.com`
+5. If existing user:
+   - Updates the GitHub access token
+6. Redirects to frontend with access token
+
+## Database Schema
+
+The callback creates or updates a User record with:
+
+<ResponseField name="email" type="string">
+  User's email from GitHub, or generated fallback email.
+</ResponseField>
+
+<ResponseField name="github_username" type="string">
+  User's GitHub login username.
+</ResponseField>
+
+<ResponseField name="github_token" type="string">
+  GitHub OAuth access token (used for authentication).
+</ResponseField>
+
+## Example Flow
+
+```bash cURL
+# This is called automatically by GitHub after user authorization
+curl -X GET 'https://api.privycode.com/github/callback?code=abc123&state=550e8400-e29b-41d4-a716-446655440000'
+```
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `FRONTEND_URL` | `http://localhost:5173` | Web application URL for redirect |
+| `MOBILE_URL` | Falls back to `FRONTEND_URL` | Mobile application URL for redirect |
+
+## Implementation Details
+
+- Uses GitHub OAuth configuration to exchange code for token
+- Fetches user profile from `https://api.github.com/user`
+- Stores access token for subsequent authenticated requests
+- Supports both web and mobile client flows via state parameter
+- Automatically generates fallback email if GitHub doesn't provide one
+
+## Next Steps
+
+After successful callback, use the provided access token to:
+- Access protected endpoints via the `Authorization: Bearer {token}` header
+- Retrieve user information from the [/me endpoint](/api/auth/me)

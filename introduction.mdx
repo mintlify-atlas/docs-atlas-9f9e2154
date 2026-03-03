@@ -1,0 +1,176 @@
+---
+title: 'Welcome to PrivyCode'
+description: 'Share read-only access to your private GitHub repositories securely - no public repos, no exposed secrets'
+---
+
+<img
+  className="block dark:hidden"
+  src="/images/hero-light.svg"
+  alt="PrivyCode Hero Light"
+/>
+<img
+  className="hidden dark:block"
+  src="/images/hero-dark.svg"
+  alt="PrivyCode Hero Dark"
+/>
+
+## What is PrivyCode?
+
+PrivyCode is a secure platform that allows developers to **share read-only access to their private GitHub repositories** with recruiters, collaborators, or anyone who needs to view your code - without making repositories public or exposing sensitive information.
+
+Perfect for job applications, code reviews, and portfolio showcases, PrivyCode gives you complete control over who sees your code and for how long.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card
+    title="Expiring Viewer Links"
+    icon="clock"
+    href="/concepts/viewer-links"
+  >
+    Generate time-limited links that automatically expire after your specified duration (default 3 days)
+  </Card>
+  <Card
+    title="View Limit Control"
+    icon="eye"
+    href="/concepts/viewer-links"
+  >
+    Set maximum view counts to restrict how many times your repository can be accessed
+  </Card>
+  <Card
+    title="Read-Only Access"
+    icon="lock"
+    href="/concepts/security"
+  >
+    Viewers can browse your code but cannot fork, clone, or make any modifications
+  </Card>
+  <Card
+    title="GitHub OAuth Integration"
+    icon="github"
+    href="/concepts/authentication"
+  >
+    Secure authentication via GitHub OAuth2 - no separate account needed
+  </Card>
+  <Card
+    title="Developer Dashboard"
+    icon="chart-line"
+    href="/api/viewer-links/dashboard"
+  >
+    Manage all your viewer links in one place - create, edit, copy, and delete with ease
+  </Card>
+  <Card
+    title="No Login Required for Viewers"
+    icon="user-check"
+    href="/api/public/view-repo"
+  >
+    Recipients can view your code immediately without creating an account or logging in
+  </Card>
+</CardGroup>
+
+## How It Works
+
+<Steps>
+  <Step title="Authenticate with GitHub">
+    Sign in to PrivyCode using your GitHub account via OAuth2. Your GitHub token is securely stored and used to access your private repositories.
+  </Step>
+  
+  <Step title="Generate a Viewer Link">
+    Select a private repository, set an expiration time (in days), and optionally set a maximum view count. PrivyCode generates a unique token for secure access.
+  </Step>
+  
+  <Step title="Share the Link">
+    Send the generated viewer link to anyone you want to share your code with. No GitHub account required for viewers!
+  </Step>
+  
+  <Step title="Track and Manage">
+    Monitor view counts, update expiration times, or delete links anytime from your dashboard.
+  </Step>
+</Steps>
+
+## Architecture Overview
+
+PrivyCode is built with a modern tech stack designed for security and performance:
+
+<CardGroup cols={2}>
+  <Card title="Backend" icon="server">
+    **Go** with `net/http` and GORM for efficient API handling and database operations
+  </Card>
+  <Card title="Database" icon="database">
+    **PostgreSQL** for reliable data persistence with GORM migrations
+  </Card>
+  <Card title="Authentication" icon="shield-halved">
+    **GitHub OAuth2** for secure user authentication and **JWT-style tokens** for API access
+  </Card>
+  <Card title="Frontend" icon="react">
+    **React + TypeScript** with TailwindCSS and Monaco Editor for code viewing
+  </Card>
+</CardGroup>
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Job Applications" icon="briefcase">
+    Share your private projects with recruiters during the hiring process without making them public. Set expiration dates to automatically revoke access after the interview period.
+  </Accordion>
+  
+  <Accordion title="Code Reviews" icon="code-compare">
+    Allow mentors or colleagues to review your private code without granting full repository access or collaborator permissions.
+  </Accordion>
+  
+  <Accordion title="Portfolio Showcases" icon="folder-open">
+    Include links to your private work in your portfolio or resume. Control how long the links remain active and track engagement.
+  </Accordion>
+  
+  <Accordion title="Client Demonstrations" icon="presentation-screen">
+    Show work-in-progress to clients without exposing your entire codebase or development environment.
+  </Accordion>
+</AccordionGroup>
+
+## Security First
+
+<Note>
+  PrivyCode prioritizes security at every level:
+  - All GitHub tokens are securely stored and never exposed
+  - Viewer links use unique, cryptographically secure tokens
+  - Read-only access prevents any modifications to your repositories
+  - Automatic expiration and view limits provide time-bound access control
+  - CORS middleware ensures proper cross-origin request handling
+</Note>
+
+## Quick Links
+
+<CardGroup cols={3}>
+  <Card
+    title="Quick Start"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Get up and running in 5 minutes
+  </Card>
+  <Card
+    title="API Reference"
+    icon="code"
+    href="/api/auth/github-login"
+  >
+    Explore all API endpoints
+  </Card>
+  <Card
+    title="Setup Guide"
+    icon="terminal"
+    href="/guides/setup"
+  >
+    Set up your local development environment
+  </Card>
+</CardGroup>
+
+## Ready to Get Started?
+
+Check out the [Quick Start guide](/quickstart) to set up PrivyCode and create your first viewer link, or explore the [API documentation](/api/auth/github-login) to integrate PrivyCode into your workflow.
+
+<Card
+  title="Live Demo"
+  icon="globe"
+  href="https://privycode.com"
+>
+  Experience PrivyCode in action at **privycode.com**
+</Card>
