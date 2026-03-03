@@ -1,0 +1,93 @@
+{
+  "projectType": "api-service",
+  "projectName": "PrivyCode",
+  "projectDescription": "A secure platform for sharing read-only access to private GitHub repositories with recruiters or collaborators without making them public.",
+  "theme": "aspen",
+  "primaryColor": "#6366f1",
+  "lightColor": "#818cf8",
+  "darkColor": "#4f46e5",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/authentication",
+              "concepts/viewer-links",
+              "concepts/security"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/setup",
+              "guides/deployment",
+              "guides/environment-variables"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Authentication",
+            "pages": [
+              "api/auth/github-login",
+              "api/auth/github-callback",
+              "api/auth/me"
+            ]
+          },
+          {
+            "group": "Viewer Links",
+            "pages": [
+              "api/viewer-links/generate",
+              "api/viewer-links/dashboard",
+              "api/viewer-links/update",
+              "api/viewer-links/delete"
+            ]
+          },
+          {
+            "group": "Public Access",
+            "pages": [
+              "api/public/view-repo",
+              "api/public/view-file",
+              "api/public/view-folder",
+              "api/public/view-info"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Generate expiring viewer links to private GitHub repositories",
+    "Allow recruiters to browse code without GitHub login",
+    "Read-only access with no forking or editing capabilities",
+    "Track view limits and expiration per link",
+    "Developer dashboard to manage viewer links",
+    "GitHub OAuth2 authentication with JWT-style token auth"
+  ],
+  "publicApiSurface": [
+    "GET /github/login",
+    "GET /github/callback",
+    "GET /me",
+    "GET /dashboard",
+    "POST /generate-viewer-link",
+    "PUT /update-link/:id",
+    "DELETE /delete-link/:id",
+    "GET /view/:token",
+    "GET /view-files/:token/file",
+    "GET /view-folder/:token",
+    "GET /view-info/:token"
+  ]
+}
